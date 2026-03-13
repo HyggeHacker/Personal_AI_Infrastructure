@@ -39,7 +39,7 @@ USAGE_CACHE="$PAI_DIR/MEMORY/STATE/usage-cache.json"
 LOCATION_CACHE_TTL=3600  # 1 hour (IP rarely changes)
 WEATHER_CACHE_TTL=900    # 15 minutes
 COUNTS_CACHE_TTL=30      # 30 seconds (file counts rarely change mid-session)
-USAGE_CACHE_TTL=60       # 60 seconds (API recommends ≤1 poll/minute)
+USAGE_CACHE_TTL=300      # 5 minutes — prevents rate limiting that blocks /usage and stales the cache
 
 # Additional cache files
 COUNTS_CACHE="$PAI_DIR/MEMORY/STATE/counts-cache.sh"
@@ -396,6 +396,9 @@ COUNTSEOF
                     fi
                 fi
                 echo "$usage_json" | jq '.' > "$USAGE_CACHE" 2>/dev/null
+            else
+                # Rate limited or error — touch cache to prevent immediate retry
+                [ -f "$USAGE_CACHE" ] && touch "$USAGE_CACHE"
             fi
         fi
     fi
