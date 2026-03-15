@@ -1,16 +1,22 @@
 ---
-name: work
-description: Search all prior work by topic to recall context and resume sessions. Use when wanting to find, recall, or continue previous work on any topic.
+name: cs
+description: Search prior work to add context to a request, or browse previous sessions on a topic. Shortcut for /context-search.
 argument-hint: [topic]
 ---
 
-# Work Recall
+# Context Search
 
 Search all prior work for: **$ARGUMENTS**
 
 ## Your Task
 
-You are recalling prior work on the topic "$ARGUMENTS". Search across ALL available sources, synthesize what you find, and present an actionable summary so the user can immediately resume or start fresh work on this topic.
+You are searching prior work on the topic "$ARGUMENTS". Search across ALL available sources, synthesize what you find, and present a context summary.
+
+**Two usage modes:**
+
+1. **Standalone (no accompanying request):** Search, present findings, familiarize yourself with the context, then wait for a request. Say: "I've loaded context on [topic]. What would you like to do?"
+
+2. **Paired with a request (context search used before or after a task request):** Search first, load the context, then execute the accompanying request informed by that context. Do NOT start the request until context search is complete.
 
 ## Step 1: Detect Environment
 
@@ -55,7 +61,7 @@ Use Grep to search for "$ARGUMENTS" in `~/.claude/MEMORY/WORK/` across PRD files
 Present your findings as:
 
 ```
-═══ WORK RECALL: $ARGUMENTS ══════════════════
+═══ CONTEXT SEARCH: $ARGUMENTS ══════════════════
 
 📋 MATCHING SESSIONS (sorted by most recent first):
 
@@ -82,11 +88,13 @@ Omit any section that has no results. Only show sections with actual matches.
 
 ## After Presenting Results
 
-After showing the summary:
+**Mode 1 — Standalone (no accompanying request):**
+1. If matches found: Read the most recent matching PRD (if PAI) or summarize the most recent conversation context. Then say: "I've loaded context on [topic]. The most recent session was [X]. What would you like to do?"
+2. If no matches found: Say: "No prior work found on [topic]. What would you like to do?"
 
-1. **If matches found:** Read the most recent matching PRD (if PAI) or summarize the most recent conversation context. Then say: "I've caught up on [topic]. The most recent session was [X]. Ready to continue — what would you like to work on?"
-
-2. **If no matches found:** Say: "No prior work found on [topic]. Ready to start fresh — what would you like to build?"
+**Mode 2 — Paired with a request:**
+1. If matches found: Read the most recent matching PRD (if PAI) or summarize the most recent conversation context. Then proceed to execute the accompanying request, fully informed by the recovered context.
+2. If no matches found: Proceed with the request anyway, noting that no prior context was found.
 
 ## Important
 

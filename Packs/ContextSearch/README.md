@@ -1,19 +1,19 @@
 ---
-name: Work Command
-pack-id: danielmiessler-work-command-v1.0.0
-version: 1.0.0
+name: Context Search
+pack-id: danielmiessler-context-search-v1.1.0
+version: 1.1.0
 author: danielmiessler
-description: Instant recall of prior work sessions by topic — search PRDs, git history, session names, and work directories with a single slash command
+description: Search prior work to add context to any request — search PRDs, git history, session names, and work directories with a single slash command, standalone or paired with a task
 type: skill
 purpose-type: [productivity, workflow, context-recovery]
 platform: claude-code
 dependencies: []
-keywords: [work-recall, session-search, context-recovery, PRD, slash-command, resume-work, prior-work, session-history, commands]
+keywords: [context-search, session-search, context-recovery, PRD, slash-command, resume-work, prior-work, session-history, commands]
 ---
 
-# Work Command
+# Context Search
 
-> Instant recall of prior work sessions by topic — never lose context between sessions again.
+> Search prior work to add context to any request — never lose context between sessions again.
 
 ---
 
@@ -32,7 +32,12 @@ The fundamental issue: your AI infrastructure generates valuable work artifacts 
 
 ## The Solution
 
-The Work Command adds two slash commands (`/w` and `/work`) that automatically detect your environment and search the right data sources.
+Context Search adds two slash commands (`/context-search` and `/cs`) that automatically detect your environment and search the right data sources.
+
+The command supports two usage modes:
+
+1. **Standalone** — Search and browse previous work on a topic, then wait for a request. Use this to familiarize yourself before asking.
+2. **Paired with a request** — Search first, load the context, then execute an accompanying task informed by that context. Use this to ground a request in prior work.
 
 **Any Claude Code install (vanilla):**
 1. **Conversation History** (`history.jsonl`) — Every prior prompt you've sent, with timestamps and project context
@@ -62,8 +67,8 @@ This pack is designed for AI-assisted installation. Give this directory to your 
 
 | Component | File | Purpose |
 |-----------|------|---------|
-| Primary command | `src/commands/w.md` | `/w` slash command — short form for quick access |
-| Alias command | `src/commands/work.md` | `/work` slash command — descriptive form |
+| Primary command | `src/commands/context-search.md` | `/context-search` slash command — full name for discoverability |
+| Shortcut command | `src/commands/cs.md` | `/cs` slash command — short form for quick access |
 
 **Summary:**
 - **Files created:** 2
@@ -76,12 +81,13 @@ This pack is designed for AI-assisted installation. Give this directory to your 
 
 This sounds similar to `git log --grep` which also searches past work. What makes this approach different?
 
-Work recall searches up to eight data sources simultaneously — conversation history, git commits, project memory, session metadata, PRD content, session names, and work directories. A git grep only finds commit messages. Work recall finds everything: what you asked, what was decided, what the criteria were, and where it left off. It works on any Claude Code install out of the box, and gets richer if you have PAI installed.
+Context Search searches up to eight data sources simultaneously — conversation history, git commits, project memory, session metadata, PRD content, session names, and work directories. A git grep only finds commit messages. Context Search finds everything: what you asked, what was decided, what the criteria were, and where it left off. It works on any Claude Code install out of the box, and gets richer if you have PAI installed.
 
 - Works on vanilla Claude Code — no PAI required
 - Auto-detects environment and searches available sources
 - Output is structured for instant AI context loading
 - PAI users get additional PRD and session registry search
+- Two modes: standalone browsing or paired with a task request
 
 ---
 
@@ -89,10 +95,11 @@ Work recall searches up to eight data sources simultaneously — conversation hi
 
 | Trigger | What Happens |
 |---------|--------------|
-| `/w authentication` | Searches all 5 sources for "authentication", presents structured results |
-| `/work dashboard` | Same search using the longer alias |
-| `/w deploy` | Finds all sessions related to deployment work |
-| `/w helios` | Finds project-specific sessions by name |
+| `/context-search authentication` | Searches all sources for "authentication", presents structured results, waits for a request |
+| `/cs authentication` | Same search using the shortcut |
+| `/cs deploy` then ask a question | Finds all sessions related to deployment, loads context, then answers the question informed by that context |
+| `/context-search helios` | Finds project-specific sessions by name |
+| `/cs dashboard` + "now refactor the sidebar" | Paired mode: loads dashboard context, then executes the refactor request |
 
 The command accepts any topic as a free-text argument. Matching is case-insensitive and partial — searching "auth" will match "authentication", "auth-middleware", etc.
 
@@ -100,60 +107,77 @@ The command accepts any topic as a free-text argument. Matching is case-insensit
 
 ## Example Usage
 
-### Finding Prior Work
+### Standalone Mode (Search + Wait)
 
 ```
-User: /w authentication
+User: /cs authentication
 
 AI responds:
-═══ WORK RECALL: authentication ══════════════════
+=== CONTEXT SEARCH: authentication ====================
 
-📋 MATCHING SESSIONS (sorted by most recent first):
+MATCHING SESSIONS (sorted by most recent first):
 
-  • 20260312-143000_fix-auth-middleware — Fix authentication middleware race condition
+  * 20260312-143000_fix-auth-middleware — Fix authentication middleware race condition
     Phase: complete | Progress: 8/8 | Effort: standard
     Started: 2026-03-12 | Last updated: 2026-03-12
     Key context: Fixed race condition in auth token refresh causing 401 errors
     Criteria status: 8 passed / 8 total
 
-  • 20260310-091500_add-oauth-flow — Add OAuth2 login flow
+  * 20260310-091500_add-oauth-flow — Add OAuth2 login flow
     Phase: complete | Progress: 12/12 | Effort: extended
     Started: 2026-03-10 | Last updated: 2026-03-10
     Key context: Implemented OAuth2 PKCE flow with Google and GitHub providers
     Criteria status: 12 passed / 12 total
 
-🔗 RELATED COMMITS (last 20):
-  • a1b2c3d Fix auth middleware race condition (2026-03-12)
-  • d4e5f6g Add OAuth2 PKCE flow (2026-03-10)
+RELATED COMMITS (last 20):
+  * a1b2c3d Fix auth middleware race condition (2026-03-12)
+  * d4e5f6g Add OAuth2 PKCE flow (2026-03-10)
 
-📂 WORK DIRECTORIES:
-  • 20260312-143000_fix-auth-middleware/
-  • 20260310-091500_add-oauth-flow/
+WORK DIRECTORIES:
+  * 20260312-143000_fix-auth-middleware/
+  * 20260310-091500_add-oauth-flow/
 
-───────────────────────────────────────────────
+---------------------------------------------------
 
-"I've caught up on authentication. The most recent session fixed a race condition
-in auth middleware. Ready to continue — what would you like to work on?"
+"I've loaded context on authentication. The most recent session fixed a race
+condition in auth middleware. What would you like to do?"
+```
+
+### Paired Mode (Search + Execute)
+
+```
+User: /cs authentication
+      Now add rate limiting to the auth endpoints
+
+AI responds:
+=== CONTEXT SEARCH: authentication ====================
+[same structured results as above]
+---------------------------------------------------
+
+"I've loaded context on authentication. Based on the prior work — especially
+the OAuth2 PKCE flow and the auth middleware fix — I'll now add rate limiting
+to the auth endpoints..."
+
+[proceeds to execute the task with full context]
 ```
 
 ### No Results
 
 ```
-User: /w quantum-computing
+User: /cs quantum-computing
 
 AI responds:
-═══ WORK RECALL: quantum-computing ══════════════════
+=== CONTEXT SEARCH: quantum-computing ====================
 
-📋 MATCHING SESSIONS: None found
+MATCHING SESSIONS: None found
 
-🔗 RELATED COMMITS: None found
+RELATED COMMITS: None found
 
-📂 WORK DIRECTORIES: None found
+WORK DIRECTORIES: None found
 
-───────────────────────────────────────────────
+---------------------------------------------------
 
-"No prior work found on quantum-computing. Ready to start fresh —
-what would you like to build?"
+"No prior work found on quantum-computing. What would you like to do?"
 ```
 
 ---
@@ -184,9 +208,9 @@ If you use a different directory structure for your work tracking, you can edit 
 
 | Customization | File | Impact |
 |--------------|------|--------|
-| Change work registry path | `w.md` / `work.md` | Searches your custom work.json location |
-| Change work directory path | `w.md` / `work.md` | Searches your custom PRD directory |
-| Add additional search sources | `w.md` / `work.md` | Extends search to cover more data |
+| Change work registry path | `context-search.md` / `cs.md` | Searches your custom work.json location |
+| Change work directory path | `context-search.md` / `cs.md` | Searches your custom PRD directory |
+| Add additional search sources | `context-search.md` / `cs.md` | Extends search to cover more data |
 
 ---
 
@@ -207,14 +231,21 @@ If you use a different directory structure for your work tracking, you can edit 
 ## Works Well With
 
 - **PAI Core Install** — Provides the MEMORY directory structure for full functionality
-- **PAI Algorithm Skill** — Generates the PRDs that Work Command searches
+- **PAI Algorithm Skill** — Generates the PRDs that Context Search searches
 
 ---
 
 ## Changelog
 
+### 1.1.0 - 2026-03-15
+- Renamed from Work Command to Context Search
+- Commands changed from `/w` and `/work` to `/context-search` and `/cs`
+- Added dual-mode usage: standalone (search + wait) and paired (search + execute request)
+- Output header changed from "WORK RECALL" to "CONTEXT SEARCH"
+- Shortcut `/cs` added for quick access
+
 ### 1.0.0 - 2026-03-13
-- Initial release
+- Initial release as Work Command
 - Two commands: `/w` (short) and `/work` (descriptive)
 - Five parallel search sources
 - Structured output format with recency sorting

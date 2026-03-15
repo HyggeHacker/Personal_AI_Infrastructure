@@ -17,7 +17,7 @@ PackName/
 Point your AI to the pack directory:
 
 ```
-"Install the WorkCommand pack from PAI/Packs/WorkCommand/"
+"Install the ContextSearch pack from PAI/Packs/ContextSearch/"
 ```
 
 Your AI reads `INSTALL.md` and walks through a 5-phase wizard: system analysis, user questions, backup, installation, verification.
@@ -30,7 +30,7 @@ Or manually: read `INSTALL.md`, copy files from `src/` to the specified location
 
 | Pack | Description |
 |------|-------------|
-| [WorkCommand](WorkCommand/) | `/w` and `/work` — search prior work sessions by topic |
+| [ContextSearch](ContextSearch/) | `/context-search` and `/cs` — search prior work to add context |
 
 ### Skills
 

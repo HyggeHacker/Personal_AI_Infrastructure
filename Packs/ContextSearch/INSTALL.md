@@ -1,4 +1,4 @@
-# Work Command v1.0.0 - Installation Guide
+# Context Search v1.1.0 - Installation Guide
 
 **This guide is designed for AI agents installing this pack into a user's infrastructure.**
 
@@ -17,11 +17,11 @@
 
 Before starting, greet the user:
 ```
-"I'm installing Work Command v1.0.0 — instant recall of prior work sessions by topic.
+"I'm installing Context Search v1.1.0 — search prior work to add context to any request.
 
 This pack adds two slash commands:
-- /w [topic] — short form for quick access
-- /work [topic] — descriptive form
+- /context-search [topic] — full name for discoverability
+- /cs [topic] — shortcut for quick access
 
 Let me analyze your system and guide you through installation."
 ```
@@ -47,24 +47,29 @@ else
   echo "INFO Commands directory does not exist (will be created)"
 fi
 
-# Check for existing w.md or work.md commands
-if [ -f "$CLAUDE_DIR/commands/w.md" ]; then
-  echo "WARNING Existing /w command found at: $CLAUDE_DIR/commands/w.md"
+# Check for existing context-search.md or cs.md commands
+if [ -f "$CLAUDE_DIR/commands/context-search.md" ]; then
+  echo "WARNING Existing /context-search command found at: $CLAUDE_DIR/commands/context-search.md"
 else
-  echo "OK No existing /w command (clean install)"
+  echo "OK No existing /context-search command (clean install)"
 fi
 
-if [ -f "$CLAUDE_DIR/commands/work.md" ]; then
-  echo "WARNING Existing /work command found at: $CLAUDE_DIR/commands/work.md"
+if [ -f "$CLAUDE_DIR/commands/cs.md" ]; then
+  echo "WARNING Existing /cs command found at: $CLAUDE_DIR/commands/cs.md"
 else
-  echo "OK No existing /work command (clean install)"
+  echo "OK No existing /cs command (clean install)"
+fi
+
+# Check for legacy /w and /work commands (from prior version)
+if [ -f "$CLAUDE_DIR/commands/w.md" ] || [ -f "$CLAUDE_DIR/commands/work.md" ]; then
+  echo "INFO Legacy /w or /work commands found (from Work Command v1.0.0)"
 fi
 
 # Check for PAI MEMORY structure (optional, enhances results)
-if [ -d "$CLAUDE_DIR/MEMORY/wORK" ]; then
-  echo "OK PAI MEMORY/wORK directory exists (full functionality available)"
+if [ -d "$CLAUDE_DIR/MEMORY/WORK" ]; then
+  echo "OK PAI MEMORY/WORK directory exists (full functionality available)"
 else
-  echo "INFO PAI MEMORY/wORK not found (command will work but may return fewer results)"
+  echo "INFO PAI MEMORY/WORK not found (command will work but may return fewer results)"
 fi
 
 if [ -f "$CLAUDE_DIR/MEMORY/STATE/work.json" ]; then
@@ -93,12 +98,13 @@ Tell the user what you found:
 ```
 "Here's what I found on your system:
 - Commands directory: [exists / will be created]
-- Existing /w command: [found — will ask about conflict / not found]
-- Existing /work command: [found — will ask about conflict / not found]
+- Existing /context-search command: [found — will ask about conflict / not found]
+- Existing /cs command: [found — will ask about conflict / not found]
+- Legacy /w or /work commands: [found (from Work Command v1.0.0) / not found]
 - PAI MEMORY structure: [found (full functionality) / not found (basic functionality)]
 - Git repository: [found / not found]
 
-[If MEMORY not found]: Note: The Work Command searches PAI's MEMORY directories
+[If MEMORY not found]: Note: Context Search searches PAI's MEMORY directories
 for prior work sessions. Without PAI installed, the command will still work but
 will only search git history. For full functionality, consider installing PAI:
 https://github.com/danielmiessler/Personal_AI_Infrastructure"
@@ -112,12 +118,12 @@ https://github.com/danielmiessler/Personal_AI_Infrastructure"
 
 ### Question 1: Conflict Resolution (if existing commands found)
 
-**Only ask if existing /w or /work command detected:**
+**Only ask if existing /context-search or /cs command detected:**
 
 ```json
 {
   "header": "Conflict — Existing Command",
-  "question": "An existing /w or /work command was found. How should I proceed?",
+  "question": "An existing /context-search or /cs command was found. How should I proceed?",
   "multiSelect": false,
   "options": [
     {"label": "Backup and Replace (Recommended)", "description": "Creates timestamped backup of existing command, then installs new version"},
@@ -127,7 +133,23 @@ https://github.com/danielmiessler/Personal_AI_Infrastructure"
 }
 ```
 
-### Question 2: Command Selection
+### Question 2: Legacy Cleanup (if /w or /work found)
+
+**Only ask if legacy /w or /work commands detected:**
+
+```json
+{
+  "header": "Legacy Commands",
+  "question": "Legacy /w and /work commands were found from Work Command v1.0.0. Context Search replaces these. Remove them?",
+  "multiSelect": false,
+  "options": [
+    {"label": "Remove legacy commands (Recommended)", "description": "Deletes w.md and work.md — /context-search and /cs replace them"},
+    {"label": "Keep legacy commands", "description": "Leaves /w and /work in place alongside the new commands"}
+  ]
+}
+```
+
+### Question 3: Command Selection
 
 ```json
 {
@@ -135,19 +157,19 @@ https://github.com/danielmiessler/Personal_AI_Infrastructure"
   "question": "Which command names would you like to install?",
   "multiSelect": false,
   "options": [
-    {"label": "Both /w and /work (Recommended)", "description": "/w for quick access, /work for discoverability"},
-    {"label": "Only /w", "description": "Short form only"},
-    {"label": "Only /work", "description": "Descriptive form only"}
+    {"label": "Both /context-search and /cs (Recommended)", "description": "/context-search for discoverability, /cs for quick access"},
+    {"label": "Only /context-search", "description": "Full name only"},
+    {"label": "Only /cs", "description": "Shortcut only"}
   ]
 }
 ```
 
-### Question 3: Final Confirmation
+### Question 4: Final Confirmation
 
 ```json
 {
   "header": "Install",
-  "question": "Ready to install Work Command v1.0.0?",
+  "question": "Ready to install Context Search v1.1.0?",
   "multiSelect": false,
   "options": [
     {"label": "Yes, install now (Recommended)", "description": "Copies command files to ~/.claude/commands/"},
@@ -160,8 +182,8 @@ https://github.com/danielmiessler/Personal_AI_Infrastructure"
 **If user chose "Show me what will change":**
 ```
 "Files to be created:
-- ~/.claude/commands/w.md (slash command definition)
-- ~/.claude/commands/work.md (slash command definition, same content)
+- ~/.claude/commands/context-search.md (slash command definition)
+- ~/.claude/commands/cs.md (slash command definition, shortcut)
 
 No other files will be modified. No hooks, no configuration changes."
 ```
@@ -176,12 +198,12 @@ Then re-ask the final confirmation question.
 
 ```bash
 CLAUDE_DIR="$HOME/.claude"
-BACKUP_DIR="$CLAUDE_DIR/Backups/work-command-$(date +%Y%m%d-%H%M%S)"
+BACKUP_DIR="$CLAUDE_DIR/Backups/context-search-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 
 # Backup existing commands
-[ -f "$CLAUDE_DIR/commands/w.md" ] && cp "$CLAUDE_DIR/commands/w.md" "$BACKUP_DIR/w.md" && echo "Backed up w.md"
-[ -f "$CLAUDE_DIR/commands/work.md" ] && cp "$CLAUDE_DIR/commands/work.md" "$BACKUP_DIR/work.md" && echo "Backed up work.md"
+[ -f "$CLAUDE_DIR/commands/context-search.md" ] && cp "$CLAUDE_DIR/commands/context-search.md" "$BACKUP_DIR/context-search.md" && echo "Backed up context-search.md"
+[ -f "$CLAUDE_DIR/commands/cs.md" ] && cp "$CLAUDE_DIR/commands/cs.md" "$BACKUP_DIR/cs.md" && echo "Backed up cs.md"
 
 echo "Backup created at: $BACKUP_DIR"
 ```
@@ -219,29 +241,29 @@ mkdir -p "$CLAUDE_DIR/commands"
 
 **Copy files based on user's command selection:**
 
-**For "Both /w and /work" (default):**
+**For "Both /context-search and /cs" (default):**
 ```bash
 PACK_DIR="$(pwd)"
 CLAUDE_DIR="$HOME/.claude"
-cp "$PACK_DIR/src/commands/w.md" "$CLAUDE_DIR/commands/w.md"
-cp "$PACK_DIR/src/commands/work.md" "$CLAUDE_DIR/commands/work.md"
-echo "Installed /w and /work commands"
+cp "$PACK_DIR/src/commands/context-search.md" "$CLAUDE_DIR/commands/context-search.md"
+cp "$PACK_DIR/src/commands/cs.md" "$CLAUDE_DIR/commands/cs.md"
+echo "Installed /context-search and /cs commands"
 ```
 
-**For "Only /w":**
+**For "Only /context-search":**
 ```bash
 PACK_DIR="$(pwd)"
 CLAUDE_DIR="$HOME/.claude"
-cp "$PACK_DIR/src/commands/w.md" "$CLAUDE_DIR/commands/w.md"
-echo "Installed /w command"
+cp "$PACK_DIR/src/commands/context-search.md" "$CLAUDE_DIR/commands/context-search.md"
+echo "Installed /context-search command"
 ```
 
-**For "Only /work":**
+**For "Only /cs":**
 ```bash
 PACK_DIR="$(pwd)"
 CLAUDE_DIR="$HOME/.claude"
-cp "$PACK_DIR/src/commands/work.md" "$CLAUDE_DIR/commands/work.md"
-echo "Installed /work command"
+cp "$PACK_DIR/src/commands/cs.md" "$CLAUDE_DIR/commands/cs.md"
+echo "Installed /cs command"
 ```
 
 **Mark todo as completed.**
@@ -257,34 +279,34 @@ echo "Installed /work command"
 ```bash
 CLAUDE_DIR="$HOME/.claude"
 
-echo "=== Work Command Verification ==="
+echo "=== Context Search Verification ==="
 
 # Check command files exist
 echo "Checking command files..."
-[ -f "$CLAUDE_DIR/commands/w.md" ] && echo "OK /w command installed" || echo "SKIP /w not installed (user chose /work only)"
-[ -f "$CLAUDE_DIR/commands/work.md" ] && echo "OK /work command installed" || echo "SKIP /work not installed (user chose /w only)"
+[ -f "$CLAUDE_DIR/commands/context-search.md" ] && echo "OK /context-search command installed" || echo "SKIP /context-search not installed (user chose /cs only)"
+[ -f "$CLAUDE_DIR/commands/cs.md" ] && echo "OK /cs command installed" || echo "SKIP /cs not installed (user chose /context-search only)"
 
 # Check frontmatter is valid
 echo "Checking frontmatter..."
-if [ -f "$CLAUDE_DIR/commands/w.md" ]; then
-  head -1 "$CLAUDE_DIR/commands/w.md" | grep -q "^---" && echo "OK w.md has valid frontmatter" || echo "ERROR w.md missing frontmatter"
+if [ -f "$CLAUDE_DIR/commands/context-search.md" ]; then
+  head -1 "$CLAUDE_DIR/commands/context-search.md" | grep -q "^---" && echo "OK context-search.md has valid frontmatter" || echo "ERROR context-search.md missing frontmatter"
 fi
-if [ -f "$CLAUDE_DIR/commands/work.md" ]; then
-  head -1 "$CLAUDE_DIR/commands/work.md" | grep -q "^---" && echo "OK work.md has valid frontmatter" || echo "ERROR work.md missing frontmatter"
+if [ -f "$CLAUDE_DIR/commands/cs.md" ]; then
+  head -1 "$CLAUDE_DIR/commands/cs.md" | grep -q "^---" && echo "OK cs.md has valid frontmatter" || echo "ERROR cs.md missing frontmatter"
 fi
 
 # Check file contents are complete
 echo "Checking file contents..."
-if [ -f "$CLAUDE_DIR/commands/w.md" ]; then
-  grep -q "WORK RECALL" "$CLAUDE_DIR/commands/w.md" && echo "OK w.md contains work recall template" || echo "ERROR w.md incomplete"
-  grep -q "work.json" "$CLAUDE_DIR/commands/w.md" && echo "OK w.md references session registry" || echo "ERROR w.md missing search sources"
+if [ -f "$CLAUDE_DIR/commands/context-search.md" ]; then
+  grep -q "CONTEXT SEARCH" "$CLAUDE_DIR/commands/context-search.md" && echo "OK context-search.md contains context search template" || echo "ERROR context-search.md incomplete"
+  grep -q "work.json" "$CLAUDE_DIR/commands/context-search.md" && echo "OK context-search.md references session registry" || echo "ERROR context-search.md missing search sources"
 fi
 
 # Check data sources (informational, not blocking)
 echo ""
 echo "Data source availability (informational):"
 [ -f "$CLAUDE_DIR/MEMORY/STATE/work.json" ] && echo "  OK work.json — session registry available" || echo "  INFO work.json — not found (install PAI for this feature)"
-[ -d "$CLAUDE_DIR/MEMORY/wORK" ] && echo "  OK MEMORY/wORK — PRD directory available" || echo "  INFO MEMORY/wORK — not found (install PAI for this feature)"
+[ -d "$CLAUDE_DIR/MEMORY/WORK" ] && echo "  OK MEMORY/WORK — PRD directory available" || echo "  INFO MEMORY/WORK — not found (install PAI for this feature)"
 [ -f "$CLAUDE_DIR/MEMORY/STATE/session-names.json" ] && echo "  OK session-names.json — session names available" || echo "  INFO session-names.json — not found (install PAI for this feature)"
 [ -d "$CLAUDE_DIR/.git" ] && echo "  OK .git — git history available" || echo "  INFO .git — not found (git history search unavailable)"
 
@@ -301,17 +323,21 @@ echo "=== Verification Complete ==="
 ### On Success
 
 ```
-"Work Command v1.0.0 installed successfully!
+"Context Search v1.1.0 installed successfully!
 
 What's available:
-- /w [topic] — quick search for prior work
-- /work [topic] — same command, descriptive name
+- /context-search [topic] — search prior work to add context
+- /cs [topic] — same command, quick shortcut
 
-Try it now: Type '/w' followed by any topic you've worked on before.
+Two usage modes:
+- Standalone: /cs authentication — browse prior work, then ask a question
+- Paired: /cs authentication + 'now add rate limiting' — search then execute
 
-Example: /w authentication
-Example: /w dashboard
-Example: /w deploy
+Try it now: Type '/cs' followed by any topic you've worked on before.
+
+Example: /cs authentication
+Example: /cs dashboard
+Example: /cs deploy
 
 Note: Results improve the more you use PAI's work tracking system (PRDs, session names, git commits)."
 ```
@@ -319,7 +345,7 @@ Note: Results improve the more you use PAI's work tracking system (PRDs, session
 ### On Success (Without PAI MEMORY)
 
 ```
-"Work Command v1.0.0 installed successfully!
+"Context Search v1.1.0 installed successfully!
 
 The commands are ready, but PAI's MEMORY system isn't installed yet.
 Right now, the commands will search git history only.
@@ -327,7 +353,7 @@ Right now, the commands will search git history only.
 For full functionality (PRD search, session registry, work directories), install PAI:
 https://github.com/danielmiessler/Personal_AI_Infrastructure
 
-Try it now: /w [any topic]"
+Try it now: /cs [any topic]"
 ```
 
 ### On Failure
@@ -358,7 +384,7 @@ This is expected if PAI's MEMORY system isn't installed. The command searches PA
 
 ### Command works but results are sparse
 
-The Work Command searches data created by PAI's Algorithm (PRDs, session metadata). The more you use PAI's structured workflow, the richer the search results become.
+Context Search searches data created by PAI's Algorithm (PRDs, session metadata). The more you use PAI's structured workflow, the richer the search results become.
 
 ---
 
@@ -366,10 +392,10 @@ The Work Command searches data created by PAI's Algorithm (PRDs, session metadat
 
 | File | Purpose |
 |------|---------|
-| `src/commands/w.md` | Primary slash command — short form `/w` |
-| `src/commands/work.md` | Alias slash command — descriptive form `/work` |
+| `src/commands/context-search.md` | Primary slash command — full name `/context-search` |
+| `src/commands/cs.md` | Shortcut slash command — quick form `/cs` |
 
-Both files contain identical logic. The only difference is the `name` field in the frontmatter (`W` vs `work`), which determines the slash command name in Claude Code.
+Both files contain identical logic. The only difference is the `name` field in the frontmatter (`Context Search` vs `cs`), which determines the slash command name in Claude Code.
 
 ---
 
@@ -378,27 +404,28 @@ Both files contain identical logic. The only difference is the `name` field in t
 ### From Claude Code
 
 ```
-/w authentication
-/w dashboard redesign
-/w deploy
-/work security audit
-/work blog publishing
+/context-search authentication
+/context-search dashboard redesign
+/cs deploy
+/cs security audit
+/cs blog publishing
 ```
 
 ### How It Works
 
-When you type `/w [topic]`, Claude Code:
-1. Loads the command template from `~/.claude/commands/w.md`
+When you type `/cs [topic]`, Claude Code:
+1. Loads the command template from `~/.claude/commands/cs.md`
 2. Substitutes `$ARGUMENTS` with your topic
-3. The AI executes the five parallel searches defined in the template
+3. The AI executes the parallel searches defined in the template
 4. Results are presented in a structured format
 5. The AI reads the most recent matching PRD for full context
+6. In standalone mode, waits for your request; in paired mode, executes the accompanying task
 
 ### Integration with PAI
 
-If you have PAI installed, the Work Command becomes significantly more powerful:
+If you have PAI installed, Context Search becomes significantly more powerful:
 - **work.json** provides structured session metadata
-- **MEMORY/wORK/*/PRD.md** provides full context, criteria, and decisions
+- **MEMORY/WORK/*/PRD.md** provides full context, criteria, and decisions
 - **session-names.json** provides human-readable session names
 - **Git history** provides commit-level detail
 
