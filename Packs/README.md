@@ -1,4 +1,10 @@
+<div align="center">
+
+<img src="pai-packs-icon.png" alt="PAI Packs" width="256">
+
 # PAI Packs
+
+</div>
 
 Standalone, AI-installable capabilities for Claude Code and other AI agent systems.
 
