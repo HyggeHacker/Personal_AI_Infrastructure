@@ -14,9 +14,7 @@ Syncs local custom skills (`_*` prefixed) from `~/.claude/skills/` to the `Hygge
 | `_INTERNAL_PENTEST` | `pai-internal-pentest-skill` | Internal pentest orchestration |
 | `_EXTERNAL_PENTEST` | `pai-external-pentest-skill` | External pentest with BBOT |
 | `_WEBAPP_PENTEST` | `pai-webapp-pentest-skill` | Web app pentest OWASP WSTG |
-| `_AZURE_PENTEST` | `pai-azure-pentest-skill` | Azure pentest (shares dir with Analysis + Compliance) |
-| `_AZURE_ANALYSIS` | `pai-azure-pentest-skill` | Azure/Entra ID analysis |
-| `_AZURE_COMPLIANCE` | `pai-azure-pentest-skill` | Azure compliance scanning |
+| `_AZURE_PENTEST` | `pai-azure-pentest-skill` | Azure / Entra ID / M365 assessment (consolidated 2026-04-28: absorbed former `_AZURE_ANALYSIS` and `_AZURE_COMPLIANCE`) |
 | `_PENTEST_FOUNDATION` | `pai-pentest-foundation-skill` | Shared pentest architecture |
 | `_PLEXTRAC_IMPORT` | `pai-plextrac-import-skill` | PlexTrac finding import |
 
