@@ -83,7 +83,7 @@ eval "$(echo "$input" | jq -r '
   "model_name=" + (.model.display_name // "unknown" | @sh) + "\n" +
   "cc_version_json=" + (.version // "" | @sh) + "\n" +
   "duration_ms=" + (.cost.total_duration_ms // 0 | tostring) + "\n" +
-  "context_max=" + (.context_window.context_window_size // 200000 | tostring) + "\n" +
+  "context_max=" + (.context_window.context_window_size // 1000000 | tostring) + "\n" +
   "context_pct=" + (.context_window.used_percentage // 0 | tostring) + "\n" +
   "context_remaining=" + (.context_window.remaining_percentage // 100 | tostring) + "\n" +
   "total_input=" + (.context_window.total_input_tokens // 0 | tostring) + "\n" +
@@ -92,7 +92,7 @@ eval "$(echo "$input" | jq -r '
 
 # Ensure defaults for critical numeric values
 context_pct=${context_pct:-0}
-context_max=${context_max:-200000}
+context_max=${context_max:-1000000}
 context_remaining=${context_remaining:-100}
 total_input=${total_input:-0}
 total_output=${total_output:-0}
@@ -492,6 +492,21 @@ fi
 dir_name=$(basename "$current_dir")
 
 # ─────────────────────────────────────────────────────────────────────────────
+# BILLING PROVIDER DETECTION
+# ─────────────────────────────────────────────────────────────────────────────
+if [ "$CLAUDE_CODE_USE_FOUNDRY" = "1" ]; then
+    billing_provider="FOUNDRY"
+    billing_resource="${ANTHROPIC_FOUNDRY_RESOURCE:-unknown}"
+    billing_badge_full="\033[48;2;0;120;212m\033[38;2;255;255;255m FOUNDRY \033[0m \033[38;2;0;120;212m${billing_resource}\033[0m"
+    billing_badge_short="\033[48;2;0;120;212m\033[38;2;255;255;255m FND \033[0m"
+else
+    billing_provider="ANTHROPIC"
+    billing_resource=""
+    billing_badge_full="\033[38;2;217;119;87mANTHROPIC\033[0m"
+    billing_badge_short="\033[38;2;217;119;87mAPI\033[0m"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # COLOR PALETTE
 # ─────────────────────────────────────────────────────────────────────────────
 # Tailwind-inspired colors organized by usage
@@ -507,6 +522,8 @@ SLATE_600='\033[38;2;71;85;105m'       # Separators
 # Semantic colors
 EMERALD='\033[38;2;74;222;128m'        # Positive/success
 ROSE='\033[38;2;251;113;133m'          # Error/negative
+AZURE_BLUE='\033[38;2;0;120;212m'      # Azure Foundry billing
+ANTHROPIC_TAN='\033[38;2;217;119;87m'  # Anthropic direct billing
 
 # Rating gradient (for get_rating_color)
 RATING_10='\033[38;2;74;222;128m'      # 9-10: Emerald
@@ -805,7 +822,7 @@ case "$MODE" in
     nano)
         printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${SLATE_600}│ ────────────${RESET}\n"
         printf "${PAI_TIME}${current_time}${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_500}${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_short} ${SLATE_500}${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET}\n"
         ;;
     micro)
         if [ -n "$session_display" ]; then
@@ -821,7 +838,7 @@ case "$MODE" in
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ──────────────────${RESET}\n"
         fi
         printf "${PAI_LABEL}LOC:${RESET} ${PAI_CITY}${location_city}${RESET} ${SLATE_600}│${RESET} ${PAI_TIME}${current_time}${RESET} ${SLATE_600}│${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET} ${SLATE_400}W:${SLATE_300}${workflows_count}${RESET} ${SLATE_400}H:${SLATE_300}${hooks_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_short} ${SLATE_600}│${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET} ${SLATE_400}W:${SLATE_300}${workflows_count}${RESET} ${SLATE_400}H:${SLATE_300}${hooks_count}${RESET}\n"
         ;;
     mini)
         if [ -n "$session_display" ]; then
@@ -837,7 +854,7 @@ case "$MODE" in
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ────────────────────────────────────────${RESET}\n"
         fi
         printf "${PAI_LABEL}LOC:${RESET} ${PAI_CITY}${location_city}${RESET}${SLATE_600},${RESET} ${PAI_STATE}${location_state}${RESET} ${SLATE_600}│${RESET} ${PAI_TIME}${current_time}${RESET} ${SLATE_600}│${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET}${SLATE_300}${skills_count}${RESET} ${WIELD_WORKFLOWS}WF:${RESET}${SLATE_300}${workflows_count}${RESET} ${WIELD_HOOKS}Hooks:${RESET}${SLATE_300}${hooks_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET}${SLATE_300}${skills_count}${RESET} ${WIELD_WORKFLOWS}WF:${RESET}${SLATE_300}${workflows_count}${RESET} ${WIELD_HOOKS}Hooks:${RESET}${SLATE_300}${hooks_count}${RESET}\n"
         ;;
     normal)
         if [ -n "$session_display" ]; then
@@ -853,7 +870,7 @@ case "$MODE" in
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ──────────────────────────────────────────────────${RESET}\n"
         fi
         printf "${PAI_LABEL}LOC:${RESET} ${PAI_CITY}${location_city}${RESET}${SLATE_600},${RESET} ${PAI_STATE}${location_state}${RESET} ${SLATE_600}│${RESET} ${PAI_TIME}${current_time}${RESET} ${SLATE_600}│${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET} ${SLATE_300}${skills_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_WORKFLOWS}WF:${RESET} ${SLATE_300}${workflows_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_HOOKS}Hooks:${RESET} ${SLATE_300}${hooks_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET} ${SLATE_300}${skills_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_WORKFLOWS}WF:${RESET} ${SLATE_300}${workflows_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_HOOKS}Hooks:${RESET} ${SLATE_300}${hooks_count}${RESET}\n"
         ;;
 esac
 printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
@@ -870,7 +887,7 @@ else time_display="${duration_sec}s"
 fi
 
 # Context display - scale to compaction threshold if configured
-context_max="${context_max:-200000}"
+context_max="${context_max:-1000000}"
 max_k=$((context_max / 1000))
 
 # Read compaction threshold from settings (default 100 = no scaling)
