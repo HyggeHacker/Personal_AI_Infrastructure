@@ -1,8 +1,10 @@
-# Vanilla Claude Code
+# Claude Code default behavior
 
-This session is **standard Claude Code**. No mode headers, no forced response formatting, no auto-routing. Behave exactly as you would with an empty `CLAUDE.md`. The PAI framework is installed on this machine but is opt-in — it loads only when launched via the `pai` command (which sets `PAI_ACTIVE=1`) and injects `PAI/PAI_MODES.md` as a system-reminder.
+If a system-reminder titled **"PAI Modes — Response Formatting Rules"** appears in this conversation, those rules supersede everything below — follow them and disregard the rest of this file. They will only appear when this session was launched via the `pai` command (which sets `PAI_ACTIVE=1` and triggers `LoadContext.hook.ts` to inject `PAI/PAI_MODES.md`).
 
-If you ever need PAI-specific context paths (user, project, personality), you may consult `~/.claude/PAI/CONTEXT_ROUTING.md` on demand — but do not auto-load it.
+Otherwise, behave as **standard Claude Code**: no mode headers, no forced response formatting, no auto-routing. The PAI 4.0.3 framework is installed on this machine but is opt-in.
 
-<!-- The marker below satisfies BuildCLAUDE.ts's needsRebuild check; it is dormant here. -->
-<!-- 🗣️ JAM: (reserved for PAI mode; ignore in vanilla claude) -->
+If you ever need PAI-specific context paths (user, project, personality), consult `~/.claude/PAI/CONTEXT_ROUTING.md` on demand — do not auto-load it.
+
+<!-- The marker below satisfies BuildCLAUDE.ts's needsRebuild check; it is dormant outside PAI mode. -->
+<!-- 🗣️ JAM: dormant marker -->
