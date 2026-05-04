@@ -527,7 +527,7 @@ function createNeofetchBanner(): string {
 
   // GitHub URL with modern link styling
   const linkIcon = `${GRADIENT.cyan2}◆${RESET}`;
-  const githubUrl = `${linkIcon} ${UI.subtext}github.com/${RESET}${GRADIENT.blue1}danielmiessler${RESET}${UI.subtext}/${RESET}${GRADIENT.purple1}PAI${RESET}`;
+  const githubUrl = `${linkIcon} ${UI.subtext}github.com/${RESET}${GRADIENT.blue1}HyggeHacker${RESET}${UI.subtext}/${RESET}${GRADIENT.purple1}Personal_AI_Infrastructure${RESET}`;
   lines.push(`  ${UI.dim}│${RESET}${center(githubUrl, bottomWidth - 2)}${UI.dim}│${RESET}`);
 
   // Bottom border
