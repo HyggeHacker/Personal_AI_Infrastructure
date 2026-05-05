@@ -817,6 +817,15 @@ if [ -n "$SESSION_LABEL" ]; then
     session_display=$(echo "$SESSION_LABEL" | tr '[:lower:]' '[:upper:]')
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# MODE BADGE — vanilla vs pai (highest-priority visual cue)
+# ─────────────────────────────────────────────────────────────────────────────
+if [ -z "$PAI_ACTIVE" ]; then
+    printf "${SLATE_500}[VANILLA]${RESET} ${SLATE_600}claude — no PAI mode${RESET}\n"
+else
+    printf "${PAI_A}[PAI:${DA_NAME}]${RESET} ${SLATE_500}pai-launched session — mode formatting active${RESET}\n"
+fi
+
 # Output PAI branding line
 case "$MODE" in
     nano)
