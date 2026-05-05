@@ -35,15 +35,11 @@ USAGE_CACHE="$PAI_DIR/MEMORY/STATE/usage-cache.json"
 # NOTE: context_window.used_percentage provides raw context usage from Claude Code.
 # Scaling to compaction threshold is applied if configured in settings.json.
 
-# Temperature unit preference (fahrenheit or celsius)
-TEMP_UNIT=$(jq -r '.preferences.temperatureUnit // "fahrenheit"' "$SETTINGS_FILE" 2>/dev/null)
-[ "$TEMP_UNIT" != "celsius" ] && TEMP_UNIT="fahrenheit"
-
 # Cache TTL in seconds
 LOCATION_CACHE_TTL=3600  # 1 hour (IP rarely changes)
 WEATHER_CACHE_TTL=900    # 15 minutes
 COUNTS_CACHE_TTL=30      # 30 seconds (file counts rarely change mid-session)
-USAGE_CACHE_TTL=60       # 60 seconds (API recommends ≤1 poll/minute)
+USAGE_CACHE_TTL=300      # 5 minutes — prevents rate limiting that blocks /usage and stales the cache
 
 # Additional cache files
 COUNTS_CACHE="$PAI_DIR/MEMORY/STATE/counts-cache.sh"
@@ -67,16 +63,17 @@ input=$(cat)
 DA_NAME=$(jq -r '.daidentity.name // .daidentity.displayName // .env.DA // "Assistant"' "$SETTINGS_FILE" 2>/dev/null)
 DA_NAME="${DA_NAME:-Assistant}"
 
-# Get user timezone from settings (for reset time display)
-USER_TZ=$(jq -r '.principal.timezone // empty' "$SETTINGS_FILE" 2>/dev/null)
-USER_TZ="${USER_TZ:-UTC}"
-
 # Get PAI version from settings
 PAI_VERSION=$(jq -r '.pai.version // "—"' "$SETTINGS_FILE" 2>/dev/null)
 PAI_VERSION="${PAI_VERSION:-—}"
 
-# Get Algorithm version from settings.json (single source of truth)
-ALGO_VERSION=$(jq -r '.pai.algorithmVersion // "—"' "$SETTINGS_FILE" 2>/dev/null)
+# Get Algorithm version from LATEST file (single source of truth)
+ALGO_LATEST_FILE="$PAI_DIR/PAI/Algorithm/LATEST"
+if [ -f "$ALGO_LATEST_FILE" ]; then
+    ALGO_VERSION=$(cat "$ALGO_LATEST_FILE" 2>/dev/null | tr -d '[:space:]' | sed 's/^v//i')
+else
+    ALGO_VERSION=$(jq -r '.pai.algorithmVersion // "—"' "$SETTINGS_FILE" 2>/dev/null)
+fi
 ALGO_VERSION="${ALGO_VERSION:-—}"
 
 # Extract all data from JSON in single jq call
@@ -86,7 +83,7 @@ eval "$(echo "$input" | jq -r '
   "model_name=" + (.model.display_name // "unknown" | @sh) + "\n" +
   "cc_version_json=" + (.version // "" | @sh) + "\n" +
   "duration_ms=" + (.cost.total_duration_ms // 0 | tostring) + "\n" +
-  "context_max=" + (.context_window.context_window_size // 200000 | tostring) + "\n" +
+  "context_max=" + (.context_window.context_window_size // 1000000 | tostring) + "\n" +
   "context_pct=" + (.context_window.used_percentage // 0 | tostring) + "\n" +
   "context_remaining=" + (.context_window.remaining_percentage // 100 | tostring) + "\n" +
   "total_input=" + (.context_window.total_input_tokens // 0 | tostring) + "\n" +
@@ -95,22 +92,68 @@ eval "$(echo "$input" | jq -r '
 
 # Ensure defaults for critical numeric values
 context_pct=${context_pct:-0}
-context_max=${context_max:-200000}
+context_max=${context_max:-1000000}
 context_remaining=${context_remaining:-100}
 total_input=${total_input:-0}
 total_output=${total_output:-0}
 
-# NOTE: Removed fallback that calculated context_pct from total_input + total_output
-# when used_percentage was 0. total_input/output_tokens are CUMULATIVE session totals
-# (like an odometer) — they can far exceed context_window_size. After /clear,
-# used_percentage is null (jq defaults to 0) but totals retain pre-clear values,
-# producing inflated percentages capped to 100%. See PR #806.
+# If used_percentage is 0 but we have token data, calculate manually
+# This handles cases where statusLine is called before percentage is populated
+if [ "$context_pct" = "0" ] && [ "$total_input" -gt 0 ]; then
+    total_tokens=$((total_input + total_output))
+    context_pct=$((total_tokens * 100 / context_max))
+fi
 
-# NOTE: Removed self-calibrating startup estimate block. It cached the previous
-# session's context base tokens and used it to display an estimate before the first
-# API call. Problem: deep sessions (e.g., 66k cached base) inflated fresh session
-# displays (41% instead of real ~19%). Context shows 0% for a few seconds until
-# the first API response, which is honest. See community feedback on #754.
+# ── Self-calibrating startup estimate ──────────────────────────────────────
+# Before the first API call, Claude Code provides no token data. We estimate
+# by splitting context into: base (system prompt + tools + startup messages)
+# + dynamic additions (CLAUDE.md, memory, skills, agents).
+#
+# The base is calibrated from real data: after the first API response, we
+# derive window tokens from used_percentage, subtract dynamic additions,
+# and cache the result. Next session uses the cached base instead of guessing.
+# ───────────────────────────────────────────────────────────────────────────
+_base_cache="${PAI_DIR}/MEMORY/STATE/context-base-tokens.txt"
+
+# Helper: calculate dynamic additions (CLAUDE.md + memory + skills + agents)
+_calc_dynamic() {
+    local _dyn=0
+    [ -f "$PAI_DIR/CLAUDE.md" ] && _dyn=$((_dyn + $(wc -c < "$PAI_DIR/CLAUDE.md") / 4))
+    for _f in "$PAI_DIR"/projects/*/memory/MEMORY.md; do
+        [ -f "$_f" ] && _dyn=$((_dyn + $(wc -c < "$_f") / 4))
+    done
+    local _sk; _sk=$(jq -r '.counts.skills // 75' "$SETTINGS_FILE" 2>/dev/null || echo 75)
+    _dyn=$((_dyn + _sk * 60))
+    local _ag; _ag=$(ls "$PAI_DIR"/agents/*.md 2>/dev/null | wc -l | tr -d ' ')
+    _dyn=$((_dyn + ${_ag:-0} * 60))
+    echo "$_dyn"
+}
+
+# Estimate initial context (no API calls yet)
+if [ "$context_pct" = "0" ] && [ "$total_input" -eq 0 ] 2>/dev/null; then
+    # Read cached base from previous session, fall back to 30k default
+    _est=30000
+    if [ -f "$_base_cache" ]; then
+        _cached=$(cat "$_base_cache" 2>/dev/null)
+        [ "$_cached" -gt 10000 ] 2>/dev/null && [ "$_cached" -lt 80000 ] 2>/dev/null && _est=$_cached
+    fi
+    _est=$((_est + $(_calc_dynamic)))
+    context_pct=$((_est * 100 / context_max))
+fi
+
+# Calibrate base for future sessions (once per session, on first real data)
+# Guard: total_input > 0 ensures Claude Code returned real data (not our estimate).
+# We use used_percentage * context_max for the calculation (total_input is billing
+# tokens and doesn't reflect context window size).
+if [ "$total_input" -gt 0 ] && [ -n "$session_id" ] && [ ! -f "/tmp/.cc-ctx-cal-${session_id}" ]; then
+    touch "/tmp/.cc-ctx-cal-${session_id}"
+    _raw_ctx_pct="${context_pct%%.*}"
+    _window_tokens=$((_raw_ctx_pct * context_max / 100))
+    _measured_base=$((_window_tokens - $(_calc_dynamic)))
+    if [ "$_measured_base" -gt 10000 ] 2>/dev/null && [ "$_measured_base" -lt 80000 ] 2>/dev/null; then
+        echo "$_measured_base" > "$_base_cache"
+    fi
+fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SESSION COST ESTIMATION (real-time from token counts — no API lag)
@@ -274,7 +317,7 @@ GITEOF
         lat="${lat:-37.7749}"
         lon="${lon:-122.4194}"
 
-        weather_json=$(curl -s --max-time 3 "https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=${TEMP_UNIT}" 2>/dev/null)
+        weather_json=$(curl -s --max-time 3 "https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&temperature_unit=celsius" 2>/dev/null)
         if [ -n "$weather_json" ] && echo "$weather_json" | jq -e '.current' >/dev/null 2>&1; then
             temp=$(echo "$weather_json" | jq -r '.current.temperature_2m' 2>/dev/null)
             code=$(echo "$weather_json" | jq -r '.current.weather_code' 2>/dev/null)
@@ -285,11 +328,7 @@ GITEOF
                 71|73|75|77) condition="Snow" ;; 80|81|82) condition="Showers" ;;
                 85|86) condition="Snow" ;; 95|96|99) condition="Storm" ;;
             esac
-            if [ "$TEMP_UNIT" = "celsius" ]; then
-                echo "${temp}°C ${condition}" > "$WEATHER_CACHE"
-            else
-                echo "${temp}°F ${condition}" > "$WEATHER_CACHE"
-            fi
+            echo "${temp}°C ${condition}" > "$WEATHER_CACHE"
         fi
     fi
 
@@ -337,13 +376,9 @@ COUNTSEOF
     [ -f "$USAGE_CACHE" ] && cache_age=$(($(date +%s) - $(get_mtime "$USAGE_CACHE")))
 
     if [ "$cache_age" -gt "$USAGE_CACHE_TTL" ]; then
-        # Extract OAuth token — macOS Keychain or Linux credentials file
-        if [ "$(uname -s)" = "Darwin" ]; then
-            cred_json=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
-        else
-            cred_json=$(cat "${HOME}/.claude/.credentials.json" 2>/dev/null)
-        fi
-        token=$(echo "$cred_json" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('claudeAiOauth',{}).get('accessToken',''))" 2>/dev/null)
+        # Extract OAuth token from macOS Keychain
+        keychain_data=$(security find-generic-password -s "Claude Code-credentials" -w 2>/dev/null)
+        token=$(echo "$keychain_data" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('claudeAiOauth',{}).get('accessToken',''))" 2>/dev/null)
 
         if [ -n "$token" ]; then
             usage_json=$(curl -s --max-time 3 \
@@ -361,6 +396,9 @@ COUNTSEOF
                     fi
                 fi
                 echo "$usage_json" | jq '.' > "$USAGE_CACHE" 2>/dev/null
+            else
+                # Rate limited or error — touch cache to prevent immediate retry
+                [ -f "$USAGE_CACHE" ] && touch "$USAGE_CACHE"
             fi
         fi
     fi
@@ -414,8 +452,6 @@ learning_count="$learnings_count"
 # ─────────────────────────────────────────────────────────────────────────────
 # Hooks don't inherit terminal context. Try multiple methods.
 
-_width_cache="/tmp/pai-term-width-${KITTY_WINDOW_ID:-default}"
-
 detect_terminal_width() {
     local width=""
 
@@ -432,25 +468,10 @@ detect_terminal_width() {
     # Tier 3: tput fallback
     [ -z "$width" ] || [ "$width" = "0" ] && width=$(tput cols 2>/dev/null)
 
-    # If we got a real width, cache it for subprocess re-renders
-    if [ -n "$width" ] && [ "$width" != "0" ] && [ "$width" -gt 0 ] 2>/dev/null; then
-        echo "$width" > "$_width_cache" 2>/dev/null
-        echo "$width"
-        return
-    fi
+    # Tier 4: Environment variable
+    [ -z "$width" ] || [ "$width" = "0" ] && width=${COLUMNS:-80}
 
-    # Tier 4: Read cached width from previous successful detection
-    if [ -f "$_width_cache" ]; then
-        local cached
-        cached=$(cat "$_width_cache" 2>/dev/null)
-        if [ "$cached" -gt 0 ] 2>/dev/null; then
-            echo "$cached"
-            return
-        fi
-    fi
-
-    # Tier 5: Environment variable / default
-    echo "${COLUMNS:-80}"
+    echo "$width"
 }
 
 term_width=$(detect_terminal_width)
@@ -471,6 +492,21 @@ fi
 dir_name=$(basename "$current_dir")
 
 # ─────────────────────────────────────────────────────────────────────────────
+# BILLING PROVIDER DETECTION
+# ─────────────────────────────────────────────────────────────────────────────
+if [ "$CLAUDE_CODE_USE_FOUNDRY" = "1" ]; then
+    billing_provider="FOUNDRY"
+    billing_resource="${ANTHROPIC_FOUNDRY_RESOURCE:-unknown}"
+    billing_badge_full="\033[48;2;0;120;212m\033[38;2;255;255;255m FOUNDRY \033[0m \033[38;2;0;120;212m${billing_resource}\033[0m"
+    billing_badge_short="\033[48;2;0;120;212m\033[38;2;255;255;255m FND \033[0m"
+else
+    billing_provider="ANTHROPIC"
+    billing_resource=""
+    billing_badge_full="\033[38;2;217;119;87mANTHROPIC\033[0m"
+    billing_badge_short="\033[38;2;217;119;87mAPI\033[0m"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # COLOR PALETTE
 # ─────────────────────────────────────────────────────────────────────────────
 # Tailwind-inspired colors organized by usage
@@ -486,6 +522,8 @@ SLATE_600='\033[38;2;71;85;105m'       # Separators
 # Semantic colors
 EMERALD='\033[38;2;74;222;128m'        # Positive/success
 ROSE='\033[38;2;251;113;133m'          # Error/negative
+AZURE_BLUE='\033[38;2;0;120;212m'      # Azure Foundry billing
+ANTHROPIC_TAN='\033[38;2;217;119;87m'  # Anthropic direct billing
 
 # Rating gradient (for get_rating_color)
 RATING_10='\033[38;2;74;222;128m'      # 9-10: Emerald
@@ -553,16 +591,16 @@ USAGE_EXTRA='\033[38;2;140;90;60m'         # Muted brown for EX
 QUOTE_PRIMARY='\033[38;2;252;211;77m'
 QUOTE_AUTHOR='\033[38;2;180;140;60m'
 
-# PAI Branding (matches banner colors)
-PAI_P='\033[38;2;30;58;138m'          # Navy
-PAI_A='\033[38;2;59;130;246m'         # Medium blue
-PAI_I='\033[38;2;147;197;253m'        # Light blue
-PAI_LABEL='\033[38;2;100;116;139m'    # Slate for "status line"
-PAI_CITY='\033[38;2;147;197;253m'     # Light blue for city
-PAI_STATE='\033[38;2;100;116;139m'    # Slate for state
-PAI_TIME='\033[38;2;96;165;250m'      # Medium-light blue for time
-PAI_WEATHER='\033[38;2;135;206;235m'  # Sky blue for weather
-PAI_SESSION='\033[38;2;120;135;160m'  # Muted blue-gray for session label
+# PAI Branding header (cyan — high visibility on dark backgrounds)
+PAI_P='\033[38;2;6;182;212m'          # Cyan-500
+PAI_A='\033[38;2;34;211;238m'         # Cyan-400
+PAI_I='\033[38;2;103;232;249m'        # Cyan-300
+PAI_LABEL='\033[38;2;34;211;238m'     # Cyan-400 for "STATUSLINE"
+PAI_CITY='\033[38;2;103;232;249m'     # Cyan-300 for city
+PAI_STATE='\033[38;2;8;145;178m'      # Cyan-600 for state
+PAI_TIME='\033[38;2;34;211;238m'      # Cyan-400 for time
+PAI_WEATHER='\033[38;2;103;232;249m'  # Cyan-300 for weather
+PAI_SESSION='\033[38;2;8;145;178m'    # Cyan-600 for session label
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPER FUNCTIONS
@@ -680,7 +718,7 @@ try:
         dt = datetime.fromisoformat(ts + '+00:00')
     # Convert to Pacific
     from zoneinfo import ZoneInfo
-    local_dt = dt.astimezone(ZoneInfo('$USER_TZ'))
+    local_dt = dt.astimezone(ZoneInfo('America/Los_Angeles'))
     if '$fmt' == 'weekly':
         day = local_dt.strftime('%a')
         hour = local_dt.strftime('%H:%M')
@@ -784,7 +822,7 @@ case "$MODE" in
     nano)
         printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${SLATE_600}│ ────────────${RESET}\n"
         printf "${PAI_TIME}${current_time}${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_500}${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_short} ${SLATE_500}${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET}\n"
         ;;
     micro)
         if [ -n "$session_display" ]; then
@@ -794,13 +832,13 @@ case "$MODE" in
             local_right_len=${#session_display}
             local_fill=$((72 - local_left_len - local_right_len))
             [ "$local_fill" -lt 2 ] && local_fill=2
-            local_dashes=$(printf '%*s' "$local_fill" '' | sed 's/ /─/g')
+            local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ${local_dashes}${RESET} ${PAI_SESSION}${session_display}${RESET}\n"
         else
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ──────────────────${RESET}\n"
         fi
         printf "${PAI_LABEL}LOC:${RESET} ${PAI_CITY}${location_city}${RESET} ${SLATE_600}│${RESET} ${PAI_TIME}${current_time}${RESET} ${SLATE_600}│${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET} ${SLATE_400}W:${SLATE_300}${workflows_count}${RESET} ${SLATE_400}H:${SLATE_300}${hooks_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_short} ${SLATE_600}│${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}S:${SLATE_300}${skills_count}${RESET} ${SLATE_400}W:${SLATE_300}${workflows_count}${RESET} ${SLATE_400}H:${SLATE_300}${hooks_count}${RESET}\n"
         ;;
     mini)
         if [ -n "$session_display" ]; then
@@ -810,13 +848,13 @@ case "$MODE" in
             local_right_len=${#session_display}
             local_fill=$((72 - local_left_len - local_right_len))
             [ "$local_fill" -lt 2 ] && local_fill=2
-            local_dashes=$(printf '%*s' "$local_fill" '' | sed 's/ /─/g')
+            local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ${local_dashes}${RESET} ${PAI_SESSION}${session_display}${RESET}\n"
         else
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ────────────────────────────────────────${RESET}\n"
         fi
         printf "${PAI_LABEL}LOC:${RESET} ${PAI_CITY}${location_city}${RESET}${SLATE_600},${RESET} ${PAI_STATE}${location_state}${RESET} ${SLATE_600}│${RESET} ${PAI_TIME}${current_time}${RESET} ${SLATE_600}│${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET}${SLATE_300}${skills_count}${RESET} ${WIELD_WORKFLOWS}WF:${RESET}${SLATE_300}${workflows_count}${RESET} ${WIELD_HOOKS}Hooks:${RESET}${SLATE_300}${hooks_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET}${SLATE_300}${skills_count}${RESET} ${WIELD_WORKFLOWS}WF:${RESET}${SLATE_300}${workflows_count}${RESET} ${WIELD_HOOKS}Hooks:${RESET}${SLATE_300}${hooks_count}${RESET}\n"
         ;;
     normal)
         if [ -n "$session_display" ]; then
@@ -826,13 +864,13 @@ case "$MODE" in
             local_right_len=${#session_display}
             local_fill=$((72 - local_left_len - local_right_len))
             [ "$local_fill" -lt 2 ] && local_fill=2
-            local_dashes=$(printf '%*s' "$local_fill" '' | sed 's/ /─/g')
+            local_dashes=$(printf '%*s' "$local_fill" '' | tr ' ' '─')
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ${local_dashes}${RESET} ${PAI_SESSION}${session_display}${RESET}\n"
         else
             printf "${SLATE_600}── │${RESET} ${PAI_P}P${PAI_A}A${PAI_I}I${RESET} ${PAI_A}STATUSLINE${RESET} ${SLATE_600}│ ──────────────────────────────────────────────────${RESET}\n"
         fi
         printf "${PAI_LABEL}LOC:${RESET} ${PAI_CITY}${location_city}${RESET}${SLATE_600},${RESET} ${PAI_STATE}${location_state}${RESET} ${SLATE_600}│${RESET} ${PAI_TIME}${current_time}${RESET} ${SLATE_600}│${RESET} ${PAI_WEATHER}${weather_str}${RESET}\n"
-        printf "${SLATE_400}ENV:${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET} ${SLATE_300}${skills_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_WORKFLOWS}WF:${RESET} ${SLATE_300}${workflows_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_HOOKS}Hooks:${RESET} ${SLATE_300}${hooks_count}${RESET}\n"
+        printf "${SLATE_400}ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET} ${SLATE_300}${skills_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_WORKFLOWS}WF:${RESET} ${SLATE_300}${workflows_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_HOOKS}Hooks:${RESET} ${SLATE_300}${hooks_count}${RESET}\n"
         ;;
 esac
 printf "${SLATE_600}────────────────────────────────────────────────────────────────────────${RESET}\n"
@@ -849,7 +887,7 @@ else time_display="${duration_sec}s"
 fi
 
 # Context display - scale to compaction threshold if configured
-context_max="${context_max:-200000}"
+context_max="${context_max:-1000000}"
 max_k=$((context_max / 1000))
 
 # Read compaction threshold from settings (default 100 = no scaling)
@@ -950,7 +988,7 @@ def time_until(ts):
 def clock_time(ts, fmt):
     dt = parse_ts(ts)
     if not dt: return ''
-    local_dt = dt.astimezone(ZoneInfo('$USER_TZ'))
+    local_dt = dt.astimezone(ZoneInfo('America/Los_Angeles'))
     if fmt == 'weekly':
         return local_dt.strftime('%a %H:%M')
     return local_dt.strftime('%H:%M')
@@ -959,9 +997,8 @@ r5h = '$usage_5h_reset'
 r7d = '$usage_7d_reset'
 print(f\"reset_5h='{time_until(r5h)}'\")
 print(f\"reset_7d='{time_until(r7d)}'\")
-print(f\"clock_5h='{clock_time(r5h, 'hourly')}'\")
-print(f\"clock_7d='{clock_time(r7d, 'weekly')}'\")
-
+print(f\"clock_5h='{clock_time(r5h, \"hourly\")}'\")
+print(f\"clock_7d='{clock_time(r7d, \"weekly\")}'\")
 " 2>/dev/null)"
     reset_5h="${reset_5h:-—}"
     reset_7d="${reset_7d:-—}"

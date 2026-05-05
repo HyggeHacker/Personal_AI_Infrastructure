@@ -20,6 +20,13 @@ Syncs local custom skills (`_*` prefixed) from `~/.claude/skills/` to the `Hygge
 
 **Adding new skills**: When a new `_*` skill is created locally, add a row to this table and create the corresponding repo directory structure: `pai-{name}-skill/src/skills/{SKILL_NAME}/`.
 
+## Customization
+
+**Before executing, also load any additional mappings from:**
+`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/SyncPrivateSkills/PREFERENCES.md`
+
+If that file exists, treat any `Local Skill` → `Repo Directory` rows there as **additional** entries to process alongside the table above. This is the integration point for skills that should not appear in the public PAI fork (e.g. tool-specific skills wrapping commercial products). PAI/USER is chezmoi-encrypted and stays private.
+
 ## Workflow
 
 ### Step 1: Clone and Detect Changes
@@ -35,7 +42,8 @@ For each skill in the mapping table:
 1. Determine local path: `~/.claude/skills/{SKILL_NAME}/`
 2. Determine repo path: `/tmp/pai-private/{REPO_DIR}/src/skills/{SKILL_NAME}/`
 3. If repo path doesn't exist, this is a **new skill** — create directory structure
-4. Copy: `rsync -av --delete {local}/ {repo}/` (mirror exactly, removing files deleted locally)
+4. Copy: `rsync -av --delete --exclude='outputs/' --exclude='targets/' --exclude='engagements/' --exclude='.env' --exclude='.token_cache' {local}/ {repo}/`
+   (mirror exactly, removing files deleted locally; excludes prevent engagement-runtime artifacts from leaking into the skill backup repo)
 5. Run `git diff --stat` to see what changed
 
 ### Step 2: Preview Changes
