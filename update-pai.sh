@@ -310,17 +310,20 @@ print_header "Updating ~/.claude Installation"
 if [ -d "$INSTALL_DIR" ]; then
   print_info "Reinstalling PAI to $INSTALL_DIR..."
 
-  if [ -f "Bundles/Official/install.ts" ]; then
-    if confirm "Run PAI installer to update ~/.claude?"; then
-      cd Bundles/Official
-      bun run install.ts --update
+  # Resolve current installer from .pai-release pointer
+  RELEASE_VERSION="$(cat "$REPO_DIR/.pai-release" 2>/dev/null || true)"
+  INSTALL_SH="$REPO_DIR/Releases/$RELEASE_VERSION/.claude/install.sh"
+  if [ -n "$RELEASE_VERSION" ] && [ -f "$INSTALL_SH" ]; then
+    if confirm "Run PAI installer ($RELEASE_VERSION) to update ~/.claude?"; then
+      bash "$INSTALL_SH"
       print_success "Installation updated"
     else
       print_warning "Skipped installation update"
-      print_info "Update manually: cd Bundles/Official && bun run install.ts --update"
+      print_info "Update manually: bash $INSTALL_SH"
     fi
   else
-    print_warning "Installer not found, skipping installation update"
+    print_warning "Installer not found (looked for: $INSTALL_SH)"
+    print_info "Verify .pai-release points to a valid Releases/<version>/.claude/install.sh"
   fi
 else
   print_warning "$INSTALL_DIR not found, skipping installation update"
