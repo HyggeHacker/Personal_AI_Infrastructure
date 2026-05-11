@@ -147,6 +147,28 @@ function detectImageFormat(data: Buffer | Uint8Array): { format: string; ext: st
  * Save image data with correct file extension based on actual content format.
  * Returns the final path (may differ from requested if format mismatch detected).
  */
+async function replicateResultToBuffer(result: any): Promise<Buffer> {
+  const first = Array.isArray(result) ? result[0] : result;
+  if (!first) throw new Error("Replicate returned empty result");
+  if (typeof first === "string") {
+    const response = await fetch(first);
+    return Buffer.from(await response.arrayBuffer());
+  }
+  if (typeof first.blob === "function") {
+    const blob = await first.blob();
+    return Buffer.from(await blob.arrayBuffer());
+  }
+  if (typeof first.url === "function") {
+    const url = await first.url();
+    const response = await fetch(typeof url === "string" ? url : url.toString());
+    return Buffer.from(await response.arrayBuffer());
+  }
+  if (first instanceof Buffer || first instanceof Uint8Array) {
+    return Buffer.from(first);
+  }
+  throw new Error(`Unrecognized Replicate result type: ${typeof first}`);
+}
+
 async function saveImage(data: Buffer | Uint8Array | any, requestedPath: string): Promise<string> {
   const buffer = data instanceof Buffer ? data : Buffer.from(data as any);
   const detected = detectImageFormat(buffer);
@@ -545,7 +567,8 @@ async function generateWithFlux(prompt: string, size: ReplicateSize, output: str
     },
   });
 
-  const finalPath = await saveImage(result, output);
+  const imageData = await replicateResultToBuffer(result);
+  const finalPath = await saveImage(imageData, output);
   console.log(`✅ Image saved to ${finalPath}`);
   return finalPath;
 }
@@ -568,7 +591,8 @@ async function generateWithNanoBanana(prompt: string, size: ReplicateSize, outpu
     },
   });
 
-  const finalPath = await saveImage(result, output);
+  const imageData = await replicateResultToBuffer(result);
+  const finalPath = await saveImage(imageData, output);
   console.log(`✅ Image saved to ${finalPath}`);
   return finalPath;
 }
