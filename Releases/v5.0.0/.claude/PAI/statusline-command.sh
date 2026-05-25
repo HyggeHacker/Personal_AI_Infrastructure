@@ -454,6 +454,24 @@ else
     MODE="normal"
 fi
 
+# ─────────────────────────────────────────────────────────────────────────────
+# BILLING PROVIDER DETECTION
+# ─────────────────────────────────────────────────────────────────────────────
+# Toggled via CLAUDE_CODE_USE_FOUNDRY env var (set by foundry-on/foundry-off
+# shell functions). Renders a colored badge on the ENV: line — blue FOUNDRY
+# with the active Azure resource name, or tan ANTHROPIC for direct API.
+if [ "$CLAUDE_CODE_USE_FOUNDRY" = "1" ]; then
+    billing_provider="FOUNDRY"
+    billing_resource="${ANTHROPIC_FOUNDRY_RESOURCE:-unknown}"
+    billing_badge_full="\033[48;2;0;120;212m\033[38;2;255;255;255m FOUNDRY \033[0m \033[38;2;0;120;212m${billing_resource}\033[0m"
+    billing_badge_short="\033[48;2;0;120;212m\033[38;2;255;255;255m FND \033[0m"
+else
+    billing_provider="ANTHROPIC"
+    billing_resource=""
+    billing_badge_full="\033[38;2;217;119;87mANTHROPIC\033[0m"
+    billing_badge_short="\033[38;2;217;119;87mAPI\033[0m"
+fi
+
 # Content width: cap at 72 so wide terminals don't stretch, but narrow ones fit
 content_width=$term_width
 [ "$content_width" -gt 72 ] && content_width=72
@@ -850,17 +868,19 @@ USAGE_STALE='\033[38;2;120;113;108m'   # Warm gray for stale labels (not values)
 QUOTE_PRIMARY='\033[38;2;252;211;77m'
 QUOTE_AUTHOR='\033[38;2;180;140;60m'
 
-# PAI Branding
-PAI_P='\033[38;2;37;99;235m'          # Blue-600 (was navy 30;58;138 — too dark on navy bg)
-PAI_A='\033[38;2;59;130;246m'         # Medium blue
-PAI_I='\033[38;2;147;197;253m'        # Light blue
+# PAI Branding header (cyan — high visibility on dark backgrounds)
+# Cyan palette ported from feat/statusline-billing-badge (J's preference);
+# keeps v5's PAI_LOGO and overall variable structure.
+PAI_P='\033[38;2;6;182;212m'          # Cyan-500
+PAI_A='\033[38;2;34;211;238m'         # Cyan-400
+PAI_I='\033[38;2;103;232;249m'        # Cyan-300
 PAI_LOGO=$'\xef\x91\xa9'  # Pulse waveform (FA heartbeat) — U+F469 in Hack Nerd Font
-PAI_LABEL='\033[38;2;100;116;139m'    # Slate for "status line"
-PAI_CITY='\033[38;2;37;99;235m'       # Blue-600 — darker, saturated city blue
-PAI_STATE='\033[38;2;125;211;252m'    # Sky-300 — lighter blue, paired with city
-PAI_TIME='\033[38;2;96;165;250m'      # Medium-light blue for time
-PAI_WEATHER='\033[38;2;135;206;235m'  # Sky blue for weather
-PAI_SESSION='\033[38;2;120;135;160m'  # Muted blue-gray for session label
+PAI_LABEL='\033[38;2;34;211;238m'     # Cyan-400 for "STATUSLINE"
+PAI_CITY='\033[38;2;103;232;249m'     # Cyan-300 for city
+PAI_STATE='\033[38;2;8;145;178m'      # Cyan-600 for state
+PAI_TIME='\033[38;2;34;211;238m'      # Cyan-400 for time
+PAI_WEATHER='\033[38;2;103;232;249m'  # Cyan-300 for weather
+PAI_SESSION='\033[38;2;8;145;178m'    # Cyan-600 for session label
 
 # ─────────────────────────────────────────────────────────────────────────────
 # HELPER FUNCTIONS
@@ -1210,7 +1230,7 @@ for _i in "${!_dims[@]}"; do
 done
 printf "\n"
 sep
-printf "${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET} ${SLATE_300}${public_skills}${RESET}${SLATE_600}🌐${RESET} ${SLATE_500}${private_skills}${RESET}${SLATE_600}🏠${RESET} ${SLATE_600}│${RESET} ${WIELD_WORKFLOWS}WF:${RESET} ${SLATE_300}${workflows_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_HOOKS}HK:${RESET} ${SLATE_300}${hooks_count}${RESET}\n"
+printf "${SLATE_400}ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}CC:${RESET} ${PAI_A}${cc_version}${RESET} ${SLATE_600}│${RESET} ${SLATE_500}PAI:${PAI_A}${PAI_VERSION}${RESET} ${SLATE_400}ALG:${PAI_A}${ALGO_VERSION}${RESET} ${SLATE_600}│${RESET} ${WIELD_ACCENT}SK:${RESET} ${SLATE_300}${public_skills}${RESET}${SLATE_600}🌐${RESET} ${SLATE_500}${private_skills}${RESET}${SLATE_600}🏠${RESET} ${SLATE_600}│${RESET} ${WIELD_WORKFLOWS}WF:${RESET} ${SLATE_300}${workflows_count}${RESET} ${SLATE_600}│${RESET} ${WIELD_HOOKS}HK:${RESET} ${SLATE_300}${hooks_count}${RESET}\n"
 sep
 
 # ═══════════════════════════════════════════════════════════════════════════════
