@@ -388,7 +388,7 @@ function cmdWallpaper(args: string[]) {
 // Commands
 // ============================================================================
 
-async function cmdLaunch(options: { mcp?: string; resume?: boolean; skipPerms?: boolean; local?: boolean; systemPrompt?: string }) {
+async function cmdLaunch(options: { mcp?: string; resume?: boolean; skipPerms?: boolean; local?: boolean; systemPrompt?: string; extraArgs?: string[] }) {
   // CLAUDE.md is now static — no build step needed.
   // Algorithm spec is loaded on-demand when Algorithm mode triggers.
   // (InstantiatePAI.ts is retired — kept for reference only)
@@ -415,6 +415,12 @@ async function cmdLaunch(options: { mcp?: string; resume?: boolean; skipPerms?: 
   // Use --dangerous flag explicitly if you really need to skip all permission checks.
   if (options.resume) {
     args.push("--resume");
+  }
+
+  // Unknown flags passthrough — forward anything pai didn't recognize to claude.
+  // Enables pai to compose with Claude Code's native flags without being aware of them.
+  if (options.extraArgs && options.extraArgs.length > 0) {
+    args.push(...options.extraArgs);
   }
 
   // Change to PAI directory unless --local flag is set
@@ -654,6 +660,10 @@ async function main() {
   let subArg: string | undefined;
   let promptText: string | undefined;
   let wallpaperArgs: string[] = [];
+  // Unknown flags passthrough — forwarded to underlying claude command at launch.
+  // Lets users combine pai with native Claude Code flags (--plugin-dir, --mcp-config,
+  // --append-system-prompt-file, etc.) without pai having to know about them.
+  const extraArgs: string[] = [];
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -719,9 +729,20 @@ async function main() {
         i = args.length; // Exit loop
         break;
       default:
-        if (!arg.startsWith("-")) {
-          // Might be an unknown command
-          error(`Unknown command: ${arg}. Use 'k help' for usage.`);
+        if (arg.startsWith("-")) {
+          // Unknown flag — passthrough to claude. If next arg is also a flag (or
+          // missing), this is a boolean flag; otherwise consume the next arg as
+          // its value. Common flags that take values: --plugin-dir, --mcp-config,
+          // --append-system-prompt-file. Common boolean: --debug.
+          extraArgs.push(arg);
+          const next = args[i + 1];
+          if (next !== undefined && !next.startsWith("-")) {
+            extraArgs.push(next);
+            i++;
+          }
+        } else {
+          // Non-flag — unknown subcommand
+          error(`Unknown command: ${arg}. Use 'pai help' for usage.`);
         }
     }
   }
@@ -760,7 +781,7 @@ async function main() {
       break;
     default:
       // Launch with options
-      await cmdLaunch({ mcp, resume, skipPerms, local, systemPrompt });
+      await cmdLaunch({ mcp, resume, skipPerms, local, systemPrompt, extraArgs });
   }
 }
 
