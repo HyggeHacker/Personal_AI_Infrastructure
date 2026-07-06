@@ -17,15 +17,17 @@ Syncs local custom skills (`_*` prefixed) from `~/.claude/skills/` to the `Hygge
 | `_AZURE_PENTEST` | `pai-azure-pentest-skill` | Azure / Entra ID / M365 assessment (consolidated 2026-04-28: absorbed former `_AZURE_ANALYSIS` and `_AZURE_COMPLIANCE`) |
 | `_PENTEST_FOUNDATION` | `pai-pentest-foundation-skill` | Shared pentest architecture |
 | `_PLEXTRAC_IMPORT` | `pai-plextrac-import-skill` | PlexTrac finding import |
+| `_THREAT_MODEL_FOUNDATION` | `pai-threat-model-foundation-skill` | Shared threat-modeling architecture |
+| `_AI_ASSESSMENT` | `pai-ai-assessment-skill` | AI / agentic-platform security assessment |
 
 **Adding new skills**: When a new `_*` skill is created locally, add a row to this table and create the corresponding repo directory structure: `pai-{name}-skill/src/skills/{SKILL_NAME}/`.
 
 ## Customization
 
 **Before executing, also load any additional mappings from:**
-`~/.claude/PAI/USER/SKILLCUSTOMIZATIONS/SyncPrivateSkills/PREFERENCES.md`
+`~/.claude/LIFEOS/USER/SKILLCUSTOMIZATIONS/SyncPrivateSkills/PREFERENCES.md`
 
-If that file exists, treat any `Local Skill` → `Repo Directory` rows there as **additional** entries to process alongside the table above. This is the integration point for skills that should not appear in the public PAI fork (e.g. tool-specific skills wrapping commercial products). PAI/USER is chezmoi-encrypted and stays private.
+If that file exists, treat any `Local Skill` → `Repo Directory` rows there as **additional** entries to process alongside the table above. This is the integration point for skills that should not appear in the public fork (e.g. tool-specific skills wrapping commercial products — currently `_NESSUS` → `pai-nessus-skill` and `_RUNZERO` → `pai-runzero-skill`). LIFEOS/USER is chezmoi-encrypted and stays private.
 
 ## Workflow
 
