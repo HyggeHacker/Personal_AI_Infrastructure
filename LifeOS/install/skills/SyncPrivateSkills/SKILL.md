@@ -44,7 +44,7 @@ For each skill in the mapping table:
 1. Determine local path: `~/.claude/skills/{SKILL_NAME}/`
 2. Determine repo path: `/tmp/pai-private/{REPO_DIR}/src/skills/{SKILL_NAME}/`
 3. If repo path doesn't exist, this is a **new skill** — create directory structure
-4. Copy: `rsync -av --delete --exclude='outputs/' --exclude='targets/' --exclude='engagements/' --exclude='.env' --exclude='.token_cache' {local}/ {repo}/`
+4. Copy: `rsync -av --delete --exclude='outputs/' --exclude='targets/' --exclude='engagements/' --exclude='.venv/' --exclude='__pycache__/' --exclude='node_modules/' --exclude='.env' --exclude='.token_cache' {local}/ {repo}/`
    (mirror exactly, removing files deleted locally; excludes prevent engagement-runtime artifacts from leaking into the skill backup repo)
 5. Run `git diff --stat` to see what changed
 
