@@ -1,6 +1,6 @@
 ---
 name: Art
-description: "Static visual content across 20+ formats via Flux, Nano Banana Pro (Gemini 3 Pro), and GPT-Image-2. Workflows: Essay, D3Dashboards, Visualize, Mermaid, TechnicalDiagrams, Taxonomies, Timelines, Frameworks, Comparisons, AnnotatedScreenshots, RecipeCards, Aphorisms, Maps, Stats, Comics, StyleMatchedThumbnail, YouTubeThumbnailChecklist, AdHocYouTubeThumbnail, CreateLifeosPackIcon, LogoWallpaper, EmbossedLogoWallpaper, RemoveBackground. Output staged to ~/Downloads/ before project copy; --remove-bg returns transparent PNG; user customization dir overrides defaults (model/size flag details in body). USE WHEN art, illustration, diagram, flowchart, infographic, header image, blog social thumbnail, visualize, generate image, mermaid, architecture diagram, comic, icon, blog art, framework diagram, D3 chart, remove background, wallpaper. NOT FOR locked house-style YouTube/channel/video thumbnails (use _THUMBNAIL — it orchestrates Art's Generate/PickExpression/ThumbnailText tools), video or animation (use Remotion), or web UI design and integrated frontend layout (use Webdesign)."
+description: "Static visual content across 20+ formats via Flux, Nano Banana Pro (Gemini 3 Pro), and GPT-Image-2. Workflows: Essay, D3Dashboards, Visualize, Mermaid, TechnicalDiagrams, DataFlowDiagram, Taxonomies, Timelines, Frameworks, Comparisons, AnnotatedScreenshots, RecipeCards, Aphorisms, Maps, Stats, Comics, StyleMatchedThumbnail, YouTubeThumbnailChecklist, AdHocYouTubeThumbnail, CreateLifeosPackIcon, LogoWallpaper, EmbossedLogoWallpaper, RemoveBackground. Output staged to ~/Downloads/ before project copy; --remove-bg returns transparent PNG; user customization dir overrides defaults (model/size flag details in body). USE WHEN art, illustration, diagram, flowchart, infographic, header image, blog social thumbnail, visualize, generate image, mermaid, architecture diagram, comic, icon, blog art, framework diagram, D3 chart, remove background, wallpaper. NOT FOR locked house-style YouTube/channel/video thumbnails (use _THUMBNAIL — it orchestrates Art's Generate/PickExpression/ThumbnailText tools), video or animation (use Remotion), or web UI design and integrated frontend layout (use Webdesign)."
 effort: medium
 ---
 
@@ -88,6 +88,7 @@ bun ~/.claude/skills/Art/Tools/Generate.ts \
 | Blog header / editorial essay illustration | **`Workflows/Essay.md`** — Steps 1–8 in order, no skipping |
 | Mermaid diagram | `Workflows/Mermaid.md` |
 | Technical / architecture diagram | `Workflows/TechnicalDiagrams.md` |
+| Data flow diagram / DFD / threat-model or trust-boundary diagram | `Workflows/DataFlowDiagram.md` |
 | Framework / 2x2 / matrix | `Workflows/Frameworks.md` |
 | D3 dashboard / chart | `Workflows/D3Dashboards.md` |
 | Taxonomy / hierarchy | `Workflows/Taxonomies.md` |
