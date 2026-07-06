@@ -1245,6 +1245,15 @@ if [ -f "$_LIFEOS_STATE_JSON" ]; then
     fi
 fi
 
+# Hide the STATE meter while every dimension is a placeholder (fresh install /
+# pre-interview) — it returns automatically once LIFEOS_STATE.json has real
+# numbers. Trims two lines off the fresh-install statusline.
+_state_has_data=false
+for _p in "${_pcts[@]}"; do
+    case "$_p" in ''|*[!0-9]*) ;; *) _state_has_data=true; break ;; esac
+done
+
+if [ "$_state_has_data" = "true" ]; then
 printf "${SLATE_500}STATE:${RESET} "
 for _i in "${!_dims[@]}"; do
     _dc=$(_dim_color "${_dims[$_i]}")
@@ -1259,6 +1268,7 @@ for _i in "${!_dims[@]}"; do
     [ "$_i" -lt $((${#_dims[@]} - 1)) ] && printf " ${SLATE_600}│${RESET} "
 done
 printf "\n"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODE — current session's LifeOS mode + four-level intelligence level.
@@ -1396,8 +1406,8 @@ _pm_level_c() {
     esac
 }
 
-# Dotted divider between STATE and MODE.
-printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
+# Dotted divider between STATE and MODE — only rendered when STATE is shown.
+[ "$_state_has_data" = "true" ] && printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
 
 # Build the enumerated line: every option listed, only the active one colored.
 # Icon-only label: ⚙️ leads the work/mode/level line (principal directive
@@ -1622,7 +1632,7 @@ else
     billing_badge_full="\033[38;2;217;119;87mANTHROPIC\033[0m"
     billing_badge_short="\033[38;2;217;119;87mAPI\033[0m"
 fi
-printf "${SLATE_400}ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
+printf "${SLATE_400}◈ ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
 
 # ── AGENTS roster — which model the ROUTER assigns delegated agents at the current
 # mode/tier (persistent; "not only the default model, but the models the agents run
@@ -1738,7 +1748,7 @@ bar_width=$(( content_width - 11 - _ctx_suffix_len ))
 [ "$bar_width" -lt 16 ] && bar_width=16
 
 bar=$(render_context_bar $bar_width $display_pct)
-printf "${CTX_SECONDARY}CONTEXT:${RESET} ${bar} ${pct_color}${display_pct}%%${RESET}\n"
+printf "${CTX_SECONDARY}◉ CONTEXT:${RESET} ${bar} ${pct_color}${display_pct}%%${RESET}\n"
 
 # Thin separator between context bar and files
 printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
@@ -2032,12 +2042,16 @@ if [ "${usage_no_data:-false}" != "true" ] && { [ "$usage_5h_int" -gt 0 ] || [ "
     else
         _sub_color="$USAGE_PRIMARY"; _api_color="$SLATE_600"
     fi
-    printf "${_label_color}USE:${RESET} ${_reset_color}5HR:${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_5h_fmt} ${SLATE_600}│${RESET} ${_reset_color}WEEK:${RESET} ${usage_7d_color}${usage_7d_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_7d_fmt} ${SLATE_600}(${RESET}${_sub_color}SUB${RESET}${SLATE_600}/${RESET}${_api_color}API${RESET}${SLATE_600})${RESET}"
+    printf "${_label_color}▰ USE:${RESET} ${_reset_color}5HR:${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_5h_fmt} ${SLATE_600}│${RESET} ${_reset_color}WEEK:${RESET} ${usage_7d_color}${usage_7d_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_7d_fmt} ${SLATE_600}(${RESET}${_sub_color}SUB${RESET}${SLATE_600}/${RESET}${_api_color}API${RESET}${SLATE_600})${RESET}"
     [ -n "$extra_display" ] && printf " ${SLATE_600}│${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
     [ -n "$stale_suffix" ] && printf "${stale_suffix}"
     printf "\n"
-    sep
 fi
+
+# ── PWD — current working directory basename, always the final row. Ported from
+#    the v5 statusline (row-identity glyph + dir); replaces the old trailing
+#    separator so it adds identity without adding height.
+printf "${SLATE_400}◈ PWD:${RESET} ${LIFEOS_A}${dir_name}${RESET}\n"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 7: QUOTE (normal mode only)
