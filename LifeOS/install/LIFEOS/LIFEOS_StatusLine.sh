@@ -8,6 +8,52 @@
 set -o pipefail
 
 # ─────────────────────────────────────────────────────────────────────────────
+# FAST-PATH CACHE EMIT (stale-while-revalidate)
+# ─────────────────────────────────────────────────────────────────────────────
+# Claude Code re-fires the statusline command on a burst of startup events
+# (debounced ~300ms) and CANCELS any invocation still running when the next
+# fires. The full render below forks ~98 processes (~0.75s) — far longer than
+# the re-fire gap — so at startup every render was killed before it emitted a
+# byte, leaving the statusline blank until the burst settled (or forever).
+#
+# This wrapper returns in <30ms: it emits the last cached render immediately,
+# then refreshes the cache in a DETACHED background process. The heavy body
+# (everything below) runs only when LIFEOS_SL_RENDER=1, which the background
+# re-invocation sets — so the guard is not re-entrant and cannot loop.
+if [ -z "${LIFEOS_SL_RENDER:-}" ]; then
+    _sl_input=$(cat)
+    _sl_sid=$(printf '%s' "$_sl_input" | jq -r '.session_id // "nosess"' 2>/dev/null)
+    _sl_sid="${_sl_sid:-nosess}"
+    _sl_cache="/tmp/lifeos-sl-${USER:-anon}-${_sl_sid}.ansi"
+    _sl_lock="${_sl_cache}.lock"
+
+    # 1. Emit the last good render instantly (empty only on the very first tick).
+    [ -f "$_sl_cache" ] && cat "$_sl_cache"
+
+    # 2. Refresh in the background when the cache is missing or >2s stale, unless
+    #    a refresh is already running. mkdir is the atomic lock; a lock older than
+    #    ~15s is reclaimed (a crashed render left it behind).
+    _sl_mtime() { stat -f %m "$1" 2>/dev/null || stat -c %Y "$1" 2>/dev/null || echo 0; }
+    _sl_now=$(date +%s)
+    _sl_age=999999
+    [ -f "$_sl_cache" ] && _sl_age=$(( _sl_now - $(_sl_mtime "$_sl_cache") ))
+    if [ "$_sl_age" -ge 2 ]; then
+        if [ -d "$_sl_lock" ] && [ "$(( _sl_now - $(_sl_mtime "$_sl_lock") ))" -ge 15 ]; then
+            rmdir "$_sl_lock" 2>/dev/null
+        fi
+        if mkdir "$_sl_lock" 2>/dev/null; then
+            (
+                printf '%s' "$_sl_input" | LIFEOS_SL_RENDER=1 bash "$0" > "$_sl_cache.tmp" 2>/dev/null \
+                    && mv -f "$_sl_cache.tmp" "$_sl_cache"
+                rmdir "$_sl_lock" 2>/dev/null
+            ) &
+            disown 2>/dev/null
+        fi
+    fi
+    exit 0
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -79,18 +125,6 @@ for _algo_path in \
         [ -n "$ALGO_VERSION" ] && break
     fi
 done
-# Diagnostic log so we can see WHAT is happening in claude-code spawn context
-{
-    printf '[%s] ALGO_VERSION=%q HOME=%q LIFEOS_DIR=%q USER=%q paths_tried:' \
-        "$(date '+%H:%M:%S')" "$ALGO_VERSION" "${HOME:-UNSET}" "${LIFEOS_DIR:-UNSET}" "${USER:-UNSET}"
-    for _algo_path in \
-        "$LIFEOS_DIR/ALGORITHM/LATEST" \
-        "$HOME/.claude/LIFEOS/ALGORITHM/LATEST" \
-        "/Users/$(id -un 2>/dev/null)/.claude/LIFEOS/ALGORITHM/LATEST"; do
-        printf ' %s=%s' "$_algo_path" "$([ -f "$_algo_path" ] && echo OK || echo MISS)"
-    done
-    printf '\n'
-} >> /tmp/pai-statusline-debug.log 2>/dev/null
 ALGO_VERSION="${ALGO_VERSION:-—}"
 
 # Cache TTL in seconds — rationale documented for each
