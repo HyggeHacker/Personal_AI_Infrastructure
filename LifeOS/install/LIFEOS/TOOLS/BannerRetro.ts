@@ -526,7 +526,7 @@ function createRetroBanner(): string {
   // ─────────────────────────────────────────────────────────────────────────
   lines.push("");
   lines.push(`  ${gd}${BOX.sh.repeat(40)}${RESET}`);
-  lines.push(`  ${g}>${RESET} ${h}github.com/danielmiessler/PAI${RESET}${BLINK}_${RESET}`);
+  lines.push(`  ${g}>${RESET} ${h}github.com/HyggeHacker/Personal_AI_Infrastructure${RESET}${BLINK}_${RESET}`);
   lines.push(`  ${gd}${BOX.sh.repeat(40)}${RESET}`);
 
   return lines.join("\n");
@@ -634,7 +634,7 @@ function createPureASCIIBanner(): string {
 
   lines.push("");
   lines.push(`  ${gd}----------------------------------------${RESET}`);
-  lines.push(`  ${g}>${RESET} ${h}github.com/danielmiessler/PAI${RESET}${g}_${RESET}`);
+  lines.push(`  ${g}>${RESET} ${h}github.com/HyggeHacker/Personal_AI_Infrastructure${RESET}${g}_${RESET}`);
   lines.push(`  ${gd}----------------------------------------${RESET}`);
 
   return lines.join("\n");
@@ -682,7 +682,7 @@ function createCompactRetroBanner(): string {
 
   lines.push("");
   lines.push(`${g}LifeOS${RESET} ${gd}|${RESET} ${h}LifeOS${RESET}`);
-  lines.push(`${gd}> github.com/danielmiessler/PAI${RESET}`);
+  lines.push(`${gd}> github.com/HyggeHacker/Personal_AI_Infrastructure${RESET}`);
 
   return lines.join("\n");
 }

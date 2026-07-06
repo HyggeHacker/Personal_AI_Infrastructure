@@ -161,7 +161,7 @@ function getStats(): SystemStats {
   let paiVersion = "3.0";
   let algorithmVersion = "0.2";
   let catchphrase = "{name} here, ready to go";
-  let repoUrl = "github.com/danielmiessler/LifeOS";
+  let repoUrl = "github.com/HyggeHacker/Personal_AI_Infrastructure";
   try {
     // Identity from DA_IDENTITY.md frontmatter (canonical source)
     const daPath = join(CLAUDE_DIR, "LIFEOS", "USER", "DIGITAL_ASSISTANT", "DA_IDENTITY.md");
