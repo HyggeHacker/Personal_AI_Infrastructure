@@ -1,6 +1,6 @@
 ---
 name: Art
-description: Generate illustrations, technical diagrams, mermaid flowcharts, infographics, header images, thumbnails, comics, and PAI pack icons using multiple rendering backends. USE WHEN art, header images, visualizations, mermaid, flowchart, technical diagram, infographic, PAI icon, pack icon, YouTube thumbnails, ad hoc thumbnails, annotated screenshots, aphorisms, comics, comparisons, D3 dashboards, embossed logo wallpaper, essay illustration, frameworks, maps, recipe cards, remove background, stats, taxonomies, timelines, brand wallpaper, visualize, generate image, Midjourney, compose thumbnail, generate prompt.
+description: Generate illustrations, technical diagrams, mermaid flowcharts, infographics, header images, thumbnails, comics, and PAI pack icons using multiple rendering backends. USE WHEN art, header images, visualizations, mermaid, flowchart, technical diagram, data flow diagram, DFD, threat model diagram, infographic, PAI icon, pack icon, YouTube thumbnails, ad hoc thumbnails, annotated screenshots, aphorisms, comics, comparisons, D3 dashboards, embossed logo wallpaper, essay illustration, frameworks, maps, recipe cards, remove background, stats, taxonomies, timelines, brand wallpaper, visualize, generate image, Midjourney, compose thumbnail, generate prompt.
 ---
 
 # Art Skill
@@ -64,6 +64,7 @@ Route to the appropriate workflow based on the request.
   - Visualization or unsure which format → `Workflows/Visualize.md`
   - Mermaid flowchart or sequence diagram → `Workflows/Mermaid.md`
   - Technical or architecture diagram → `Workflows/TechnicalDiagrams.md`
+  - Data flow diagram, DFD, threat model or trust boundary diagram → `Workflows/DataFlowDiagram.md`
   - Taxonomy or classification grid → `Workflows/Taxonomies.md`
   - Timeline or chronological progression → `Workflows/Timelines.md`
   - Framework or 2x2 matrix → `Workflows/Frameworks.md`
