@@ -193,6 +193,27 @@ function applyPronunciations(text: string): string {
   return result
 }
 
+// ── Global Voice Gate (settings.json voiceEnabled) ──
+
+/**
+ * Live-read settings.json `voiceEnabled` to honor a global "voice off" state.
+ * Returns true if voice is globally enabled (default), false if user has
+ * explicitly disabled it via `voice off` shell function (which flips this key).
+ *
+ * Fail-open: if settings.json is missing or unreadable, assume voice is on.
+ * Read on every call (no cache) so `voice off` takes effect immediately
+ * without restarting pulse.
+ */
+function isVoiceGloballyEnabled(): boolean {
+  try {
+    const settingsFile = join(process.env.HOME ?? "~", ".claude", "settings.json")
+    const settings = JSON.parse(readFileSync(settingsFile, "utf-8"))
+    return settings?.voiceEnabled !== false
+  } catch {
+    return true
+  }
+}
+
 // ── Voice Config from settings.json ──
 
 function loadVoiceConfigFromSettings(): LoadedVoiceConfig {
@@ -347,26 +368,40 @@ async function generateSpeech(
 
 // ── Audio Playback ──
 
+// Audio playback queue — prevents overlapping speech from concurrent notifications.
+// Multiple hooks/curls firing simultaneously would each spawn an afplay process
+// in parallel without this serialization. Promise-chain ensures each clip plays
+// fully before the next starts. Errors don't break the chain (second arg to .then
+// catches a rejection and continues the queue).
+let audioQueue: Promise<void> = Promise.resolve()
+
+function enqueueAudio(fn: () => Promise<void>): Promise<void> {
+  audioQueue = audioQueue.then(fn, fn)
+  return audioQueue
+}
+
 async function playAudio(audioBuffer: ArrayBuffer, volume: number = FALLBACK_VOLUME): Promise<void> {
-  const tempFile = `/tmp/voice-${Date.now()}.mp3`
+  return enqueueAudio(async () => {
+    const tempFile = `/tmp/voice-${Date.now()}.mp3`
 
-  await Bun.write(tempFile, audioBuffer)
+    await Bun.write(tempFile, audioBuffer)
 
-  return new Promise((resolve, reject) => {
-    const proc = spawn("/usr/bin/afplay", ["-v", volume.toString(), tempFile])
+    return new Promise((resolve, reject) => {
+      const proc = spawn("/usr/bin/afplay", ["-v", volume.toString(), tempFile])
 
-    proc.on("error", (error) => {
-      log("error", "Voice: error playing audio", { error: String(error) })
-      reject(error)
-    })
+      proc.on("error", (error) => {
+        log("error", "Voice: error playing audio", { error: String(error) })
+        reject(error)
+      })
 
-    proc.on("exit", (code) => {
-      spawn("/bin/rm", [tempFile])
-      if (code === 0) {
-        resolve()
-      } else {
-        reject(new Error(`afplay exited with code ${code}`))
-      }
+      proc.on("exit", (code) => {
+        spawn("/bin/rm", [tempFile])
+        if (code === 0) {
+          resolve()
+        } else {
+          reject(new Error(`afplay exited with code ${code}`))
+        }
+      })
     })
   })
 }
@@ -403,6 +438,13 @@ async function sendNotification(
   callerVoiceSettings?: Partial<ElevenLabsVoiceSettings> | null,
   callerVolume?: number | null,
 ): Promise<{ voicePlayed: boolean; voiceError?: string }> {
+  // Global voice gate (settings.json voiceEnabled). Single point of truth
+  // for `voice off` — applies to /notify, /notify/personality, /voice, and
+  // any future caller. Desktop notification still fires; only TTS is muted.
+  if (voiceEnabled && !isVoiceGloballyEnabled()) {
+    voiceEnabled = false
+  }
+
   const titleValidation = validateInput(title)
   const messageValidation = validateInput(message)
 
