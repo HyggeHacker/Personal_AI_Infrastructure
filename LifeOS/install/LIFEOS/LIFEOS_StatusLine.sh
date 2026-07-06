@@ -1603,7 +1603,26 @@ _model_display="${model_name// context/}"
 if [ -n "${_pm_level_model:-}" ]; then
     _model_display="$(printf '%s' "$_pm_level_model" | cut -c1)$(printf '%s' "$_pm_level_model" | cut -c2- | tr '[:upper:]' '[:lower:]')"
 fi
-printf "${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
+# ─────────────────────────────────────────────────────────────────────────────
+# BILLING PROVIDER BADGE (ported from v5 statusline)
+# ─────────────────────────────────────────────────────────────────────────────
+# Toggled via CLAUDE_CODE_USE_FOUNDRY env var (set by foundry-on/foundry-off
+# shell functions). Renders a colored ENV: badge as the leading segment of the
+# info line below — blue FOUNDRY with the active Azure resource name, or tan
+# ANTHROPIC for direct API. Explicit ANSI codes are kept from v5 (literal brand
+# colors, deliberately outside the SLATE_* palette).
+if [ "$CLAUDE_CODE_USE_FOUNDRY" = "1" ]; then
+    billing_provider="FOUNDRY"
+    billing_resource="${ANTHROPIC_FOUNDRY_RESOURCE:-unknown}"
+    billing_badge_full="\033[48;2;0;120;212m\033[38;2;255;255;255m FOUNDRY \033[0m \033[38;2;0;120;212m${billing_resource}\033[0m"
+    billing_badge_short="\033[48;2;0;120;212m\033[38;2;255;255;255m FND \033[0m"
+else
+    billing_provider="ANTHROPIC"
+    billing_resource=""
+    billing_badge_full="\033[38;2;217;119;87mANTHROPIC\033[0m"
+    billing_badge_short="\033[38;2;217;119;87mAPI\033[0m"
+fi
+printf "${SLATE_400}ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
 
 # ── AGENTS roster — which model the ROUTER assigns delegated agents at the current
 # mode/tier (persistent; "not only the default model, but the models the agents run
