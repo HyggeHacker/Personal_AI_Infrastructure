@@ -76,3 +76,12 @@ credentials/
 
 # per-machine release marker (read by pai-sync; never commit)
 .pai-release
+
+# Skill runtime outputs — public skills are symlinked live<->fork, so anything a
+# skill writes into its own dir at runtime lands in this working tree. Keep pure
+# runtime state out of git; `LinkSkills.sh --check` surfaces any other dirt to triage.
+LifeOS/install/skills/Evals/Results/
+LifeOS/install/skills/*/Downloads/
+LifeOS/install/skills/Daemon/**/daemon-data.json
+LifeOS/install/skills/*/Logs/*.jsonl
+!LifeOS/install/skills/Upgrade/Logs/run-history.jsonl

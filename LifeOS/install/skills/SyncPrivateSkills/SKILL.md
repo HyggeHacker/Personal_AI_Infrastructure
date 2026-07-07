@@ -1,5 +1,13 @@
 # Sync Private Skills
 
+> ⚠️ **DEPRECATED 2026-07-06 — do not run.** Superseded by `~/Projects/skills-private`,
+> a plain private git repo consumed via `link.sh` symlinks (no PAI machinery). The
+> live `~/.claude/skills/_*` are now symlinks INTO that repo, so backup/distribute is
+> just git: `cd ~/Projects/skills-private && git add -A && git commit && git push`.
+> Running this skill pushes to the old `pai-private` layout and will DIVERGE from
+> skills-private. Kept only for reference / one-off public export via `export-portable.sh`.
+> See `LIFEOS/DOCUMENTATION/Skills/SkillSourcingModel.md` for the current model.
+
 Syncs local custom skills (`_*` prefixed) from `~/.claude/skills/` to the `HyggeHacker/pai-private` GitHub repo.
 
 ## When to Use
