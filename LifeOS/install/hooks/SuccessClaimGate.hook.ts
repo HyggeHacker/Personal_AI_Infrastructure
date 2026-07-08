@@ -38,9 +38,10 @@
 import { readHookInput, parseTranscriptFromInput } from "./lib/hook-io";
 import { appendFileSync, mkdirSync } from "fs";
 import { dirname, join } from "path";
+import { getLifeosDir } from "./lib/paths";
 
 const OBS_PATH = join(
-  process.env.LIFEOS_DIR || join(process.env.HOME!, ".claude", "LIFEOS"),
+  getLifeosDir(),
   "MEMORY",
   "OBSERVABILITY",
   "success-claim-gate.jsonl",
