@@ -121,6 +121,17 @@ Gotchas should capture:
 - Common mistakes Claude makes with this skill
 - Edge cases that cause silent failures
 
+### MERGE mode (automated skill-lesson landing)
+
+When a lesson arrives from the inward-arrow capture loop (a low-rated turn attributed to this skill, approved by the principal at the Telegram gate), it lands in `## Gotchas` under **MERGE** semantics, applied deterministically by `LIFEOS/PULSE/lib/telegram-skill-lessons.ts:applySkillLesson`:
+
+- **Merge, never blind-append.** Normalize the incoming bullet (strip stamp, lowercase, collapse to alphanumerics) and compare against existing Gotchas bullets. If it matches one, skip it — two runs that learn the same thing must not stack two near-identical bullets.
+- **Create the section if absent**, at end of file.
+- **Stamp provenance** on every landed bullet as an HTML comment: `<!-- skill-lesson: signal=… run=… model=… applied=… -->`. The stamp records the birth signal so the lesson can be traced and, if the signal is re-runnable, re-verified.
+- **Human-gated only.** This applier writes SKILL.md exclusively from the approval handler. SKILL.md stays Tier D; the autonomous reviewer never reaches it. The human at the gate is the verifier of record.
+
+MERGE mode is the narrow, automated path for a single approved lesson. Richer rewrites (rewording for clarity, consolidating related bullets, cutting bloat) remain the full agent-driven ImproveSkill flow above.
+
 ---
 
 ## Step 4b: BPE Audit
