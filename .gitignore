@@ -85,3 +85,6 @@ LifeOS/install/skills/*/Downloads/
 LifeOS/install/skills/Daemon/**/daemon-data.json
 LifeOS/install/skills/*/Logs/*.jsonl
 !LifeOS/install/skills/Upgrade/Logs/run-history.jsonl
+# Currency runtime state (regenerated per check; never a durable input)
+LifeOS/install/skills/*/State/
+LifeOS/install/skills/*/*/State/
