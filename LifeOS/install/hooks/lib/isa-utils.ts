@@ -1173,14 +1173,12 @@ export function upsertSession(sessionUUID: string, sessionName: string, task: st
       if (sessionName) session.sessionName = sessionName;
 
       // Track mode transition if mode changed.
-      // 2026-05-24 (realtime-phase-tracking): one-way upgrade for `algorithm`.
-      // When TheRouter's classifier already declared this session as
+      // One-way upgrade for `algorithm`: once a session is recorded as
       // currentMode='algorithm', PromptProcessing's local `isNativeMode` regex
-      // must NOT silently downgrade it back to 'native' a tick later. The
-      // classifier is authoritative; this guard preserves its decision.
-      // 2026-07-01: the LEGITIMATE algorithm→native downgrade is recorded by
-      // TheRouter (the authoritative classifier) via markSessionNative() —
-      // this guard only blocks PromptProcessing's WEAK regex, never the classifier.
+      // must NOT silently downgrade it back to 'native' a tick later. That regex
+      // is a weak 8-verb heuristic; a real return to native is owned by the
+      // phase writer (ISASync), not by a per-prompt guess. This guard preserves
+      // the algorithm classification against the weak regex.
       const prevMode = session.currentMode || (session.mode === 'starting' ? 'algorithm' : 'native');
       const isDowngradeFromAlgorithm = prevMode === 'algorithm' && resolvedMode === 'native';
       if (prevMode !== resolvedMode && !isDowngradeFromAlgorithm) {
@@ -1249,155 +1247,14 @@ export function upsertSession(sessionUUID: string, sessionName: string, task: st
 /** @deprecated Use upsertSession instead */
 export const upsertNativeSession = upsertSession;
 
-/**
- * Mark a session as algorithm-starting in work.json. Called by
- * TheRouter.hook.ts the instant the classifier emits MODE=ALGORITHM, so
- * the Pulse dashboard shows the session as an algorithm session BEFORE the
- * model receives the prompt — no "phase: native" wrong-display window.
- *
- * Behavior:
- *   - If a row exists for this UUID:
- *       - currentMode='algorithm' AND not phase='complete' → no-op (idempotent)
- *       - otherwise: upgrade currentMode→'algorithm', mode→'starting',
- *         and phase→'starting' (only when phase was 'native' — never stomps
- *         a real algorithm phase like 'observe' from a resumed session)
- *   - If no row exists: create a fresh `${datePrefix}_starting-${prefix}` slug
- *     with currentMode='algorithm', mode='starting', phase='starting'
- *
- * Side-effect: writes work.json atomically via writeRegistry.
- * Best-effort: failures must not break the TheRouter classification path.
- */
-/**
- * Authoritatively record a session switching BACK to native (algorithm→native),
- * updating `currentMode` + pushing a `modeHistory` transition so the Pulse
- * Agents/Lattice dashboard re-lanes the session to the native view and the
- * ModeTimeline shows the switch. Called by TheRouter (the authoritative
- * classifier) on NATIVE turns.
- *
- * This is the DOWNGRADE path that `upsertSession` deliberately refuses: that
- * guard exists to stop PromptProcessing's WEAK 8-verb regex from clobbering the
- * classifier's decision a tick later. TheRouter's classifier is authoritative,
- * so it IS allowed to record the return to native. `currentMode` is what every
- * dashboard `inferMode`/`resolveMode` reads FIRST, so this alone re-categorizes
- * the session without touching `phase`/`mode` — safe to resume the algorithm later
- * (markAlgorithmStarting re-upgrades). Idempotent; failure-silent.
- */
-export function markSessionNative(sessionUUID: string): void {
-  if (!sessionUUID) return;
-  try {
-    const registry = readRegistry();
-    // Deterministic targeting: the MOST-RECENT non-complete row for this uuid.
-    // Usually there is exactly one (upsertSession dedupes per uuid); on the rare
-    // "finished-but-unmarked ISA + fresh row" edge, most-recent picks the live one
-    // so we never flicker the wrong dashboard lane. No matching row → no-op (never
-    // create a row for a pure-native session that never entered work tracking).
-    let targetSlug: string | null = null;
-    let bestT = -1;
-    for (const [slug, session] of Object.entries(registry.sessions) as [string, any][]) {
-      if (session.sessionUUID !== sessionUUID) continue;
-      if (session.phase === 'complete') continue;
-      const t = new Date(session.updatedAt || session.started || 0).getTime();
-      if (t >= bestT) { bestT = t; targetSlug = slug; }
-    }
-    if (!targetSlug) return;
-    const session = registry.sessions[targetSlug];
-    if (session.currentMode === 'native') return; // idempotent — already native
-    const modeHistory: ModeTransition[] = session.modeHistory || [];
-    const last = modeHistory.length ? modeHistory[modeHistory.length - 1] : null;
-    if (last && !last.endedAt) last.endedAt = Date.now();
-    modeHistory.push({ mode: 'native', startedAt: Date.now() });
-    // Cap growth on a long oscillating session — the timeline only needs recent history.
-    session.modeHistory = modeHistory.length > 50 ? modeHistory.slice(-50) : modeHistory;
-    session.currentMode = 'native';
-    session.updatedAt = new Date().toISOString();
-    writeRegistry(registry);
-  } catch { /* silent — dashboard mode is best-effort */ }
-}
-
-export function markAlgorithmStarting(sessionUUID: string, taskHint: string, tier?: number): void {
-  if (!sessionUUID) return;
-  // Resolved tier ("E1".."E5") persisted onto the row so the Pulse Agents/Lattice
-  // page shows the correct tier the instant TheRouter classifies — before any
-  // ISA exists. Undefined tier leaves the existing effort untouched.
-  const effortStr = (typeof tier === 'number' && tier >= 1 && tier <= 5) ? `E${tier}` : undefined;
-  try {
-    const registry = readRegistry();
-    const timestamp = new Date().toISOString();
-
-    // Look for any non-complete row owning this UUID.
-    let targetSlug: string | null = null;
-    for (const [slug, session] of Object.entries(registry.sessions) as [string, any][]) {
-      if (session.sessionUUID !== sessionUUID) continue;
-      if (session.phase === 'complete') continue;
-      targetSlug = slug;
-      break;
-    }
-
-    if (targetSlug) {
-      const session = registry.sessions[targetSlug];
-      const alreadyAlgorithm = session.currentMode === 'algorithm';
-      const phaseIsNative = (session.phase || '').toLowerCase() === 'native';
-
-      // Idempotent: already algorithm AND not native-placeholder → just bump.
-      if (alreadyAlgorithm && !phaseIsNative) {
-        if (effortStr) session.effort = effortStr;
-        session.updatedAt = timestamp;
-        writeRegistry(registry);
-        return;
-      }
-
-      // Upgrade in place — preserve sessionUUID and slug; only flip mode/phase.
-      const modeHistory: ModeTransition[] = session.modeHistory || [];
-      if (modeHistory.length > 0) {
-        const last = modeHistory[modeHistory.length - 1];
-        if (!last.endedAt && last.mode !== 'algorithm') last.endedAt = Date.now();
-      }
-      if (!alreadyAlgorithm) {
-        modeHistory.push({ mode: 'algorithm', startedAt: Date.now() });
-        session.modeHistory = modeHistory;
-      }
-      session.currentMode = 'algorithm';
-      if (effortStr) session.effort = effortStr;
-      // Only flip the surface phase when it was the native placeholder.
-      // Real algorithm phases (observe/think/plan/build/execute/verify/learn/complete)
-      // are owned by ISASync / AlgoPhase and must not be stomped here.
-      if (phaseIsNative) {
-        session.phase = 'starting';
-        session.mode = 'starting';
-      }
-      session.updatedAt = timestamp;
-      writeRegistry(registry);
-      return;
-    }
-
-    // No row exists yet — create a fresh starting row.
-    const now = new Date();
-    const pad = (n: number) => n.toString().padStart(2, '0');
-    const datePrefix = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}-${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}${pad(now.getUTCSeconds())}`;
-    const taskSlug = (taskHint || 'starting')
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-      .slice(0, 40) || 'starting';
-    const slug = `${datePrefix}_${taskSlug}`;
-
-    registry.sessions[slug] = {
-      task: taskHint || 'Starting...',
-      sessionUUID,
-      phase: 'starting',
-      progress: '0/0',
-      effort: effortStr || 'E1',
-      mode: 'starting',
-      started: timestamp,
-      updatedAt: timestamp,
-      currentMode: 'algorithm',
-      modeHistory: [{ mode: 'algorithm', startedAt: Date.now() }],
-      ratings: [],
-      minimalCount: 0,
-    };
-    writeRegistry(registry);
-  } catch {}
-}
+// ── TOMBSTONE: markSessionNative() + markAlgorithmStarting() removed ───────
+// Retired with the mode/tier surface (2026-07). Their ONLY caller was
+// TheRouter.hook.ts, which v7 deleted along with modes and effort tiers. They
+// pre-stamped `currentMode` and an `E{n}` effort token onto the work.json row
+// the instant the classifier fired; with no classifier and no tiers, nothing
+// stamps ahead of the ISA anymore. ISASync now owns the row's mode/phase, and
+// `effort` is historical-display only (see effort.ts). Do NOT reintroduce
+// pre-stamping; it belongs to the deleted Router era.
 
 /**
  * Add a RatingPulse to a session in work.json. Called by PromptProcessing fast-path.

@@ -1,15 +1,19 @@
 /**
- * Canonical effort-tier normalizer.
+ * Legacy effort-tier normalizer (historical data only).
  *
- * Single source of truth for parsing the many shapes effort can take in LifeOS:
- * - ISA frontmatter: `effort: E3` (canonical, Algorithm v6.x)
- * - Legacy lowercase tier names: `effort: advanced`
- * - Title-cased tier names: `effort: Advanced`
- * - Native sessions: `effort: native` or `effort: ''`
+ * Effort tiers (E1-E5 / Standard..Comprehensive) were retired 2026-07-11 when
+ * judgment-based spend replaced fixed tiers. Nothing routes on these values
+ * anymore. This normalizer survives ONLY so historical rows keep a stable
+ * display label: archived work.json sessions and ISA frontmatter written before
+ * the retirement still carry an `effort` value, and live Pulse consumers render
+ * those historical rows.
+ *
+ * Do NOT add new writers of the `effort` field, and do NOT reintroduce
+ * tier-based routing. Every shape below is historical:
+ * - Legacy ISA frontmatter: `effort: E3`
+ * - Legacy lowercase / title-cased tier names: `effort: advanced` / `Advanced`
+ * - Native / blank sessions: `effort: native` or `effort: ''`
  * - Anything else: empty / undefined / garbage
- *
- * Every LifeOS surface that reads or writes the `effort` field MUST route through
- * this normalizer so the tier surface stays canonical.
  */
 
 export type EffortELevel = 'E1' | 'E2' | 'E3' | 'E4' | 'E5';
