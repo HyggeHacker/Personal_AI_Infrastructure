@@ -1549,15 +1549,14 @@ fi
 # deliberately NOT the level-routed EFFORT_MODEL pick (that lineup is the 🤖
 # mode line below); DEF answers "what does my /model say right now?".
 _model_display="${model_name// context/}"
-# Model names render ALL CAPS to match the mode line below (principal 2026-07-06).
+# Model names render ALL CAPS to match the agents line below (principal 2026-07-06).
 _model_display=$(printf '%s' "$_model_display" | tr '[:lower:]' '[:upper:]')
 printf "${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}DEF MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
 
-# ── AGENTS roster — which model the ROUTER assigns delegated agents at the current
-# mode/tier (persistent; "not only the default model, but the models the agents run
-# on"). This is the BASE routing posture; the ▸ LIVE line below is the corrector for
-# actual dispatches (incl. Core-System Override, which forces max at any tier).
-# Distinct from MODEL above (the main-loop orchestrator).
+# ── AGENTS roster: which model delegated agents run on under the current base
+# posture ("not only the default model, but the models the agents run on"). This
+# is the BASE posture; the ▸ LIVE line below corrects it for actual in-flight
+# dispatches. Distinct from MODEL above (the main-loop orchestrator).
 #
 # Model LABELS are READ from EFFORT_MODEL/CROSS_VENDOR in models.ts (single source of
 # truth) — a lineup flip (e.g. max→opus) re-labels the roster automatically, no edit
@@ -1566,12 +1565,11 @@ printf "${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600
 #
 # _pm_roster_states: pure, unit-testable. Echoes 5 rung states in fixed rung order
 #   "max high medium low forge"  —  2 = primary here   1 = utility rung   0 = off
-# Forge is ALWAYS 0 here (principal 2026-07-06): tier posture ("Forge binds at
-# E3+") no longer lights GPT-5.6 — only a LIVE in-flight Forge dispatch does
-# (override just below the read).
+# Forge is ALWAYS 0 here (principal 2026-07-06): the base posture never lights
+# GPT-5.6; only a LIVE in-flight Forge dispatch does (override just below the read).
 _pm_roster_states() {
-    # Modes/tiers removed 2026-07-11: base posture is static — high (Opus) is the
-    # primary dispatch rung; Core-System max overrides surface via the ▸ LIVE line.
+    # Base posture is static (modes/tiers removed 2026-07-11): high (Opus) is the
+    # primary dispatch rung. Max overrides surface via the ▸ LIVE line.
     printf '0 2 1 1 0'
 }
 
@@ -1629,7 +1627,7 @@ if [ "$MODE" = "normal" ]; then
     _ar_tok() {  # $1=state $2=rung $3=label
         printf "%b%s${RESET}" "$(_ar_rung_c "$2" "$1")" "$3"
     }
-    _ar_line="${SLATE_400}🤖 MODE:${RESET} "
+    _ar_line="${SLATE_400}🤖 AGENTS:${RESET} "
     _ar_line+="$(_ar_tok "$_rs_low"   low    "$_lbl_low") "
     _ar_line+="$(_ar_tok "$_rs_med"   medium "$_lbl_med") "
     _ar_line+="$(_ar_tok "$_rs_high"  high   "$_lbl_high") "
