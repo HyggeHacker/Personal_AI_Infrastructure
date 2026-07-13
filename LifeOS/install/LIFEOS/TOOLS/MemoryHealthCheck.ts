@@ -32,6 +32,13 @@ const OBS_DIR = join(CLAUDE, "LIFEOS/MEMORY/OBSERVABILITY");
 
 const SETTINGS_LIVE = join(CLAUDE, "settings.json");
 const SETTINGS_SYSTEM = join(CLAUDE, "settings.system.json");
+
+// Principal opt-out: when this marker exists, the autonomic memory layer is
+// INTENTIONALLY disabled (hooks unregistered by choice — "lifeoff", 2026-07-06).
+// Registration/liveness checks flip to ok: absence IS the desired state, and
+// reporting it critical trains sessions to ignore this tool (cry-wolf).
+const MEMORY_OFF_MARKER = join(CLAUDE, "LIFEOS/USER/CONFIG/memory-layer-off");
+const MEMORY_OFF = existsSync(MEMORY_OFF_MARKER);
 const REVIEW_STATE = join(OBS_DIR, "review-state.json");
 const HEALTH_LOG = join(OBS_DIR, "memory-health.jsonl");
 const REVIEWER_RUNS = join(OBS_DIR, "reviewer-runs");
@@ -120,14 +127,20 @@ function checkHooksInFile(filePath: string, label: string) {
   }
 }
 
-checkHooksInFile(SETTINGS_SYSTEM, "settings.system.json");
-checkHooksInFile(SETTINGS_LIVE, "settings.json");
+if (MEMORY_OFF) {
+  add("memory-layer-off", "ok",
+      "Memory layer disabled by principal (marker present) — hook-registration and liveness checks are intentionally satisfied by absence.",
+      { marker: MEMORY_OFF_MARKER });
+} else {
+  checkHooksInFile(SETTINGS_SYSTEM, "settings.system.json");
+  checkHooksInFile(SETTINGS_LIVE, "settings.json");
+}
 
 // CHECK 3b: delta-surface liveness — curation writing while the chat surface
 // is dead is exactly the 5-day silent failure of 2026-06-06→11. The surface
 // hook touches a heartbeat file on every invocation; if the newest autonomic
 // memory write is >24h newer than the heartbeat, the surface isn't running.
-{
+if (!MEMORY_OFF) {
   const HEARTBEAT_FILE = join(CLAUDE, "LIFEOS/MEMORY/STATE/delta-surface-heartbeat");
   const WRITES_FILE = join(OBS_DIR, "memory-writes.jsonl");
   try {
@@ -177,7 +190,9 @@ if (!existsSync(REVIEW_STATE)) {
 }
 
 // CHECK 5: last reviewer run not too stale
-if (lastReviewAt) {
+if (lastReviewAt && MEMORY_OFF) {
+  add("review-stale-na", "ok", "Reviewer staleness not applicable — memory layer disabled by principal.");
+} else if (lastReviewAt) {
   const ageMs = Date.now() - new Date(lastReviewAt).getTime();
   if (ageMs > STALE_REVIEW_MS) {
     const ageDays = Math.round(ageMs / (24 * 60 * 60 * 1000));
@@ -252,6 +267,7 @@ const overall: Severity = criticals.length > 0 ? "critical" : warns.length > 0 ?
 
 const report = {
   ts: new Date().toISOString(),
+  memory_layer: MEMORY_OFF ? "off (principal opt-out)" : "on",
   overall,
   counts: { critical: criticals.length, warn: warns.length, ok: oks.length },
   findings: findings.filter(f => f.severity !== "ok"),
