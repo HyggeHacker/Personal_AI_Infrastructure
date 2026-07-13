@@ -1256,6 +1256,17 @@ fi
 # NORMAL MODE: Full multi-line output (80+ columns)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── Per-row visibility (managed by /statusline via StatuslineRows.ts) ──
+# Each normal-mode row is gated by _row_on <key>. Defaults reproduce v7's stock
+# layout EXCEPT state, files, and memory_health, which start hidden. The CLI
+# writes USER/CONFIG/statusline-rows.conf (user data, never shipped); when that
+# file exists it is sourced here and overrides these defaults.
+SLR_header=1; SLR_state=0; SLR_effort=1; SLR_memory_health=0; SLR_env=1
+SLR_agents=1; SLR_context=1; SLR_files=0; SLR_use=1; SLR_quote=1
+_slr_conf="$LIFEOS_DIR/USER/CONFIG/statusline-rows.conf"
+[ -f "$_slr_conf" ] && . "$_slr_conf"
+_row_on() { local _v="SLR_$1"; [ "${!_v}" = "1" ]; }
+
 # Output LifeOS branding line: LifeOS │ CITY, STATE 🇺🇸  HH:MM  ☁️ temp [│ session]
 # City + state arrive uppercased from the location prefetch; flag is rendered there too.
 _hdr_loc=""
@@ -1270,6 +1281,7 @@ _hdr_loc_plain=""
 _hdr_loc_plain="${_hdr_loc_plain}${location_city}"
 [ -n "$location_state" ] && _hdr_loc_plain="${_hdr_loc_plain}, ${location_state}"
 [ -z "$_hdr_loc_plain" ] && _hdr_loc_plain="—"
+if _row_on header; then
 if [ -n "$session_display" ]; then
     printf "${LIFEOS_P}LI${LIFEOS_A}FE${LIFEOS_I}OS${RESET} ${SLATE_600}│${RESET} ${_hdr_loc}  ${LIFEOS_TIME}${current_time}${RESET}  ${LIFEOS_WEATHER}${weather_str}${RESET} ${SLATE_600}│${RESET} ${LIFEOS_SESSION}${session_display}${RESET}\n"
 else
@@ -1280,6 +1292,7 @@ else
     printf "${LIFEOS_P}LI${LIFEOS_A}FE${LIFEOS_I}OS${RESET} ${SLATE_600}│${RESET} ${_hdr_loc}  ${LIFEOS_TIME}${current_time}${RESET}  ${LIFEOS_WEATHER}${weather_str}${RESET} ${SLATE_600}${_hdr_dashes}${RESET}\n"
 fi
 printf "${SLATE_600}%s${RESET}\n" "$SEP_DASHED"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE: STATE METER — dimension meters toward Ideal State
@@ -1345,6 +1358,7 @@ if [ -f "$_LIFEOS_STATE_JSON" ]; then
     fi
 fi
 
+if _row_on state; then
 printf "${SLATE_500}STATE:${RESET} "
 for _i in "${!_dims[@]}"; do
     _dc=$(_dim_color "${_dims[$_i]}")
@@ -1359,6 +1373,9 @@ for _i in "${!_dims[@]}"; do
     [ "$_i" -lt $((${#_dims[@]} - 1)) ] && printf " ${SLATE_600}│${RESET} "
 done
 printf "\n"
+# Dotted divider between STATE and the effort line (hides with STATE).
+printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # EFFORT — live reasoning effort scale. Renders below STATE, above MEMORY.
@@ -1406,10 +1423,8 @@ _pm_level_c() {
     esac
 }
 
-# Dotted divider between STATE and MODE.
-printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
-
 # Effort line only — mode enumeration removed 2026-07-11 (no more modes/tiers).
+if _row_on effort; then
 _pm_line="⚡ ${RESET}"
 # ── Effort scale (display only) ───────────────────────────────────────────────
 # LifeOS runs uniformly at `high` (principal directive 2026-07-06: only high — no
@@ -1427,6 +1442,7 @@ for _pm_l in LOW MEDIUM HIGH XHIGH MAX ULTRA; do
 done
 
 printf "%b\n" "$_pm_line"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MEMORY — one line directly under STATE: autonomic-loop health + hot-layer fill.
@@ -1450,7 +1466,7 @@ _recency_str() {
     else echo "${m}m"; fi
 }
 
-if [ "$MODE" = "normal" ] && [ -f "$_review_state_file" ]; then
+if [ "$MODE" = "normal" ] && _row_on memory_health && [ -f "$_review_state_file" ]; then
     _mem_turns=$(jq -r '.turn_count_since_last_review // 0' "$_review_state_file" 2>/dev/null)
     _mem_pending=$(jq -r '.pending_review // false' "$_review_state_file" 2>/dev/null)
     _mem_last_review=$(jq -r '.last_review_at // ""' "$_review_state_file" 2>/dev/null)
@@ -1535,6 +1551,7 @@ fi
 # now renders as the single 🧠 MEMORY line directly under STATE above; doc-review
 # cadence lives in Pulse and `kai insights`.)
 
+if _row_on env; then
 sep
 # Build harness display: "HAR: Pi 0.73.1" (Pi harness with its own version) or
 # "HAR: CC 2.1.150" (running under Claude Code directly — fold cc_version into HAR).
@@ -1552,6 +1569,7 @@ _model_display="${model_name// context/}"
 # Model names render ALL CAPS to match the agents line below (principal 2026-07-06).
 _model_display=$(printf '%s' "$_model_display" | tr '[:lower:]' '[:upper:]')
 printf "${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}DEF MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
+fi
 
 # ── AGENTS roster: which model delegated agents run on under the current base
 # posture ("not only the default model, but the models the agents run on"). This
@@ -1573,7 +1591,7 @@ _pm_roster_states() {
     printf '0 2 1 1 0'
 }
 
-if [ "$MODE" = "normal" ]; then
+if [ "$MODE" = "normal" ] && _row_on agents; then
     # Resolve rung → model NAME from models.ts (same source the MODEL line + the
     # AgentInvocation hook read). Fallbacks keep the line honest if models.ts is
     # unreadable in a hook-spawn context.
@@ -1664,6 +1682,7 @@ sep
 # Context display — show percentage and bar (no token counts)
 context_max="${context_max:-200000}"
 
+if _row_on context; then
 # Use raw percentage directly — matches /context command output
 raw_pct="${context_pct%%.*}"  # Remove decimals
 [ -z "$raw_pct" ] && raw_pct=0
@@ -1685,12 +1704,14 @@ printf "${CTX_SECONDARY}CONTEXT:${RESET} ${bar} ${pct_color}${display_pct}%%${RE
 
 # Thin separator between context bar and files
 printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
+fi
 
 # Context files line — system prompt (loaded via --append-system-prompt-file)
 # plus @imports from CLAUDE.md (v5.0: static files loaded via @imports, not loadAtStartup).
 # Each entry annotated with its on-disk size as a percentage of the context window.
 # DISPLAY ONLY — only `wc -c` runs against files; content is not re-read or re-loaded.
 # Files are sorted by size, largest first.
+if _row_on files; then
 _ctx_files=()        # plain "name (X.X%)" — used for line-wrap width math
 _ctx_files_color=()  # ANSI-colored variant — used for actual output
 
@@ -1929,6 +1950,7 @@ if [ "$_ctx_count" -gt 0 ]; then
     printf '%b\n' "${_output}"
 fi
 sep
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE: ACCOUNT USAGE (Claude API rate limits — 5H and 7D windows)
@@ -1945,7 +1967,7 @@ usage_7d_int=${usage_7d%%.*}
 # (reflected in usage_state); OAuth presence comes from its cache (also reflected
 # in usage_state by the producer). Never use cache-file existence as a data proxy
 # — that hid genuine native 0% (Failure 2) and is independent of the live data.
-if [ "${usage_state:-absent}" != "absent" ]; then
+if _row_on use && [ "${usage_state:-absent}" != "absent" ]; then
     usage_5h_color=$(get_usage_color "$usage_5h_int")
     usage_7d_color=$(get_usage_color "$usage_7d_int")
 
@@ -2065,7 +2087,7 @@ fi
 # LINE 7: QUOTE (normal mode only)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if [ "$MODE" = "normal" ] && [ -f "$QUOTES_FILE" ]; then
+if [ "$MODE" = "normal" ] && _row_on quote && [ -f "$QUOTES_FILE" ]; then
     # Curated corpus, deterministic time-based selection — same quote for each
     # 60-second window, no cache, no network.
     quote_count=$(wc -l < "$QUOTES_FILE" 2>/dev/null | tr -d ' ')
