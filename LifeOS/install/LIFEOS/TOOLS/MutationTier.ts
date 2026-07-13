@@ -70,6 +70,22 @@ const TIER_C_FILES: ReadonlySet<string> = new Set([
   pathResolve(CLAUDE_ROOT, "LIFEOS/USER/PRINCIPAL/RESUME.md"),
 ]);
 
+// ── LIFEOS-PRIVATE (skill-lesson) ── (fenced for trivial upstream rebase; see danielmiessler/LifeOS#1450)
+// Tier C: the propose-only QUEUE HOLDING FILES. A row appended to one of these
+// jsonl queues IS the Tier-C action (queue-a-proposal / queue-a-skill-lesson),
+// so the holding file classifies Tier C. This pairs with the MemorySystem.add()
+// change that tier-checks the resolved storage path for EVERY write mode (the
+// old `write_mode==="queue"` skip left queue targets un-checked). With the skip
+// closed, these two files must be Tier C or the legit proposal/skill-lesson
+// enqueue would fail ETIER_MISMATCH. Exact-match only — default-deny is intact,
+// and SKILL.md (the skill-lesson's EVENTUAL target, applied by a human-gated
+// actor, not add()) stays Tier D.
+const TIER_C_QUEUE_FILES: ReadonlySet<string> = new Set([
+  pathResolve(CLAUDE_ROOT, "LIFEOS/MEMORY/OBSERVABILITY/pending-proposals.jsonl"),
+  pathResolve(CLAUDE_ROOT, "LIFEOS/MEMORY/OBSERVABILITY/pending-skill-lessons.jsonl"),
+]);
+// ── END LIFEOS-PRIVATE ──
+
 // ── Public API ──
 
 /**
@@ -100,6 +116,7 @@ export function getTier(absolutePath: string): Tier {
     if (abs.startsWith(prefix)) return "B";
   }
   if (TIER_C_FILES.has(abs)) return "C";
+  if (TIER_C_QUEUE_FILES.has(abs)) return "C"; // LIFEOS-PRIVATE: queue holding files are Tier C (see #1450)
 
   return "D";
 }
@@ -195,6 +212,26 @@ function smokeTest(): number {
       expected: "C",
       why: "RESUME.md is propose-only",
     },
+
+    // ── LIFEOS-PRIVATE (skill-lesson) ── Tier C queue holding files (see #1450)
+    {
+      path: pathResolve(CLAUDE_ROOT, "LIFEOS/MEMORY/OBSERVABILITY/pending-proposals.jsonl"),
+      expected: "C",
+      why: "pending-proposals.jsonl is the Tier-C proposal queue",
+    },
+    {
+      path: pathResolve(CLAUDE_ROOT, "LIFEOS/MEMORY/OBSERVABILITY/pending-skill-lessons.jsonl"),
+      expected: "C",
+      why: "pending-skill-lessons.jsonl is the Tier-C skill-lesson queue",
+    },
+    {
+      // The skill-lesson's EVENTUAL target must STAY Tier D — add() never writes
+      // it; a human-gated apply arm does. Closing the queue tier-skip must not leak.
+      path: pathResolve(CLAUDE_ROOT, "skills/_EXAMPLE_SKILL/SKILL.md"),
+      expected: "D",
+      why: "SKILL.md stays untouchable even as a skill-lesson target",
+    },
+    // ── END LIFEOS-PRIVATE ──
 
     // Tier D — default-deny for anything not on a higher list
     {

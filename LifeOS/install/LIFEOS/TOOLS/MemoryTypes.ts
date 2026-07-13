@@ -13,10 +13,11 @@
  * Four initial types. Extensible by adding a registry entry — no other code
  * changes required.
  *
- *   memory     — durable fact about {{PRINCIPAL_NAME}} or {{DA_NAME}} (hot-layer, always loaded)
- *   idea       — captured thought / insight (loads on relevance)
- *   knowledge  — entity note: person / company / research (loads on relevance)
- *   proposal   — low-confidence identity edit awaiting principal approval
+ *   memory       — durable fact about {{PRINCIPAL_NAME}} or {{DA_NAME}} (hot-layer, always loaded)
+ *   idea         — captured thought / insight (loads on relevance)
+ *   knowledge    — entity note: person / company / research (loads on relevance)
+ *   proposal     — low-confidence identity edit awaiting principal approval
+ *   skill-lesson — a lesson a skill learned about itself, propose-only into its own Gotchas
  *
  * The registry is `Object.freeze`d at module load (ISC-160). A new type means
  * appending a registry entry, reviewing the change, committing — never a
@@ -40,6 +41,16 @@ const KNOWLEDGE_DIR = pathJoin(LIFEOS_DIR, "MEMORY", "KNOWLEDGE");
 export const PRINCIPAL_MEMORY_PATH = pathJoin(LIFEOS_DIR, "USER", "PRINCIPAL", "PRINCIPAL_MEMORY.md");
 export const DA_MEMORY_PATH = pathJoin(LIFEOS_DIR, "USER", "DIGITAL_ASSISTANT", "DA_MEMORY.md");
 export const PENDING_PROPOSALS_PATH = pathJoin(LIFEOS_DIR, "MEMORY", "OBSERVABILITY", "pending-proposals.jsonl");
+// ── LIFEOS-PRIVATE (skill-lesson) ── (fenced for trivial upstream rebase; see issue danielmiessler/LifeOS#1450)
+// Skill-lessons get their OWN queue file, not the identity-proposal queue. The
+// identity consumers (telegram-proposals.ts loadProposalQueue → writeProposalQueue)
+// filter to rows carrying target_file+edit and rewrite the file from that filtered
+// set, so a foreign row sharing pending-proposals.jsonl would be silently dropped
+// on the next approve/reject. A dedicated file keeps skill-lessons durable and
+// isolates them from the identity-proposal apply path until a skill-lesson-aware
+// surfacer is built.
+export const PENDING_SKILL_LESSONS_PATH = pathJoin(LIFEOS_DIR, "MEMORY", "OBSERVABILITY", "pending-skill-lessons.jsonl");
+// ── END LIFEOS-PRIVATE ──
 export const TIER_B_AUDIT_PATH = pathJoin(LIFEOS_DIR, "MEMORY", "OBSERVABILITY", "tier-b-writes.jsonl");
 
 // ── Proposal target paths (Tier C identity-doctrine + Tier B propose-first files) ──
@@ -62,7 +73,7 @@ export const CONTACTS_PATH = pathJoin(LIFEOS_DIR, "USER", "CONTACTS.md");
 
 // ── Types ──
 
-export type MemoryTypeName = "memory" | "idea" | "knowledge" | "proposal";
+export type MemoryTypeName = "memory" | "idea" | "knowledge" | "proposal" | "skill-lesson"; // LIFEOS-PRIVATE: "skill-lesson" (see #1450)
 export type Tier = "A" | "B" | "C";
 export type LoadTiming = "always" | "on-relevance" | "surface-only";
 export type WriteMode = "set-overwrite" | "append" | "queue";
@@ -228,7 +239,41 @@ export interface ProposalItem {
   source_session?: string;
 }
 
-export type TypedItem = MemoryItem | IdeaItem | KnowledgeItem | ProposalItem;
+// ── LIFEOS-PRIVATE (skill-lesson) ── (fenced for trivial upstream rebase; see #1450)
+/**
+ * Provenance stamp for a captured skill-lesson. A lesson is a first-class fact,
+ * so it carries what produced it: the moment, the session, the model, and the
+ * objective signal. The signal is what re-verification re-runs — a lesson stays
+ * trusted only as long as the thing that produced it can be re-run.
+ */
+export interface SkillLessonProvenance {
+  ts: string;                 // when the lesson was captured (ISO-8601)
+  session_id?: string;        // originating session
+  model?: string;             // model that authored the lesson
+  signal: string;             // objective signal that triggered capture (mirrors item.signal)
+}
+
+/**
+ * A lesson a skill learned about itself during a run, bound for that skill's
+ * own `Gotchas` / `Best Practices` section. Tier C, propose-only: it queues to
+ * pending-proposals.jsonl and is applied later via CreateSkill's ImproveSkill
+ * after human approval. It NEVER edits skill content autonomously — skill files
+ * are Tier D (untouchable) and stay that way.
+ */
+export interface SkillLessonItem {
+  type: "skill-lesson";
+  skill: string;              // originating skill name/slug (from the attribution join)
+  target_section: string;     // "Gotchas" | "Best Practices"
+  lesson: string;             // the proposed gotcha/lesson text
+  signal: string;             // objective signal, e.g. "low-rating:3", "tool-failure:x4", "isc-fail-then-pass"
+  signal_hash: string;        // dedup key = hash(skill + signal); future dedup + rate-cap key on this
+  confidence: number;         // 0..1
+  provenance: SkillLessonProvenance;
+  source_session?: string;
+}
+// ── END LIFEOS-PRIVATE ──
+
+export type TypedItem = MemoryItem | IdeaItem | KnowledgeItem | ProposalItem | SkillLessonItem; // LIFEOS-PRIVATE: | SkillLessonItem (see #1450)
 
 export interface TypeRegistryEntry {
   /** Resolve where an item of this type is persisted. Throws on item-shape errors. */
@@ -307,18 +352,37 @@ const _REGISTRY: Record<MemoryTypeName, TypeRegistryEntry> = {
     write_mode: "queue",
     description: "Low-confidence identity-doctrine edit awaiting principal approval via Telegram.",
   },
+  // ── LIFEOS-PRIVATE (skill-lesson) ── (fenced for trivial upstream rebase; see #1450)
+  "skill-lesson": {
+    // Propose-only, like `proposal`, but on its OWN queue file (see
+    // PENDING_SKILL_LESSONS_PATH). The eventual target is the originating skill's
+    // SKILL.md (Gotchas), applied by ImproveSkill on human approval — never a
+    // direct write here, and never by the autonomous reviewer.
+    storage_path_resolver: (item) => {
+      if (item.type !== "skill-lesson") throw new Error(`Type mismatch: expected 'skill-lesson', got '${(item as any).type}'`);
+      if (!item.skill)  throw new Error("Skill-lesson item missing required 'skill' field");
+      if (!item.lesson) throw new Error("Skill-lesson item missing required 'lesson' field");
+      return PENDING_SKILL_LESSONS_PATH;
+    },
+    load_timing: "surface-only",
+    tier: "C",
+    write_mode: "queue",
+    description: "A lesson a skill learned about itself, queued for approval before landing in that skill's Gotchas. Propose-only.",
+  },
+  // ── END LIFEOS-PRIVATE ──
 };
 
 /** Frozen registry. Mutation attempts fail (strict mode throws, sloppy silently no-ops). */
 export const TYPE_REGISTRY: Readonly<Record<MemoryTypeName, Readonly<TypeRegistryEntry>>> =
   Object.freeze({
-    memory:    Object.freeze(_REGISTRY.memory),
-    idea:      Object.freeze(_REGISTRY.idea),
-    knowledge: Object.freeze(_REGISTRY.knowledge),
-    proposal:  Object.freeze(_REGISTRY.proposal),
+    memory:         Object.freeze(_REGISTRY.memory),
+    idea:           Object.freeze(_REGISTRY.idea),
+    knowledge:      Object.freeze(_REGISTRY.knowledge),
+    proposal:       Object.freeze(_REGISTRY.proposal),
+    "skill-lesson": Object.freeze(_REGISTRY["skill-lesson"]), // LIFEOS-PRIVATE (see #1450)
   });
 
-export const ALL_TYPES: readonly MemoryTypeName[] = Object.freeze(["memory", "idea", "knowledge", "proposal"] as const);
+export const ALL_TYPES: readonly MemoryTypeName[] = Object.freeze(["memory", "idea", "knowledge", "proposal", "skill-lesson"] as const); // LIFEOS-PRIVATE: "skill-lesson" (see #1450)
 
 // ── Public lookups ──
 
@@ -347,8 +411,8 @@ function smokeTest(): number {
     else    { fail++; console.error(`  ✗ ${name}${detail ? ` — ${detail}` : ""}`); }
   };
 
-  // 1. All four types are registered
-  check("registry has 4 types", ALL_TYPES.length === 4);
+  // 1. All five types are registered
+  check("registry has 5 types", ALL_TYPES.length === 5);
   for (const t of ALL_TYPES) check(`type '${t}' registered`, !!TYPE_REGISTRY[t]);
 
   // 2. Tier orthogonality — each type declares its tier
@@ -356,18 +420,21 @@ function smokeTest(): number {
   check("idea → tier B",   TYPE_REGISTRY.idea.tier === "B");
   check("knowledge → tier B", TYPE_REGISTRY.knowledge.tier === "B");
   check("proposal → tier C", TYPE_REGISTRY.proposal.tier === "C");
+  check("skill-lesson → tier C", TYPE_REGISTRY["skill-lesson"].tier === "C"); // LIFEOS-PRIVATE
 
   // 3. Write-mode discipline
   check("memory → set-overwrite", TYPE_REGISTRY.memory.write_mode === "set-overwrite");
   check("idea → append",          TYPE_REGISTRY.idea.write_mode === "append");
   check("knowledge → append",     TYPE_REGISTRY.knowledge.write_mode === "append");
   check("proposal → queue",       TYPE_REGISTRY.proposal.write_mode === "queue");
+  check("skill-lesson → queue",   TYPE_REGISTRY["skill-lesson"].write_mode === "queue"); // LIFEOS-PRIVATE
 
   // 4. Load timing
   check("memory → always",          TYPE_REGISTRY.memory.load_timing === "always");
   check("idea → on-relevance",      TYPE_REGISTRY.idea.load_timing === "on-relevance");
   check("knowledge → on-relevance", TYPE_REGISTRY.knowledge.load_timing === "on-relevance");
   check("proposal → surface-only",  TYPE_REGISTRY.proposal.load_timing === "surface-only");
+  check("skill-lesson → surface-only", TYPE_REGISTRY["skill-lesson"].load_timing === "surface-only"); // LIFEOS-PRIVATE
 
   // 5. Path resolution — memory routes by actor
   const memPrincipal = resolveStoragePath({ type: "memory", actor: "principal", content: "RULE: x" });
@@ -397,6 +464,26 @@ function smokeTest(): number {
   });
   check("proposal → pending-proposals.jsonl", prop === PENDING_PROPOSALS_PATH, prop);
 
+  // 8b. Path resolution — skill-lesson also queues to pending-proposals.jsonl
+  // ── LIFEOS-PRIVATE (skill-lesson) ──
+  const lesson = resolveStoragePath({
+    type: "skill-lesson",
+    skill: "_EXAMPLE_SKILL",
+    target_section: "Gotchas",
+    lesson: "verify command surface against installed binary, not docs",
+    signal: "low-rating:3",
+    signal_hash: "abc123",
+    confidence: 0.7,
+    provenance: { ts: "2026-07-09T00:00:00Z", signal: "low-rating:3" },
+  });
+  check("skill-lesson → pending-skill-lessons.jsonl (own queue, not proposals)", lesson === PENDING_SKILL_LESSONS_PATH, lesson);
+  check("skill-lesson queue != identity-proposal queue", PENDING_SKILL_LESSONS_PATH !== PENDING_PROPOSALS_PATH);
+  let lessonMissingRejected = false;
+  try { resolveStoragePath({ type: "skill-lesson", skill: "", target_section: "Gotchas", lesson: "x", signal: "s", signal_hash: "h", confidence: 0.5, provenance: { ts: "t", signal: "s" } } as any); }
+  catch { lessonMissingRejected = true; }
+  check("skill-lesson with empty skill rejected", lessonMissingRejected);
+  // ── END LIFEOS-PRIVATE ──
+
   // 9. Unknown type detection
   check("unknown type rejected", !isKnownType("not_a_type"));
   check("'memory' is known type", isKnownType("memory"));
@@ -415,6 +502,17 @@ function smokeTest(): number {
     mutationBlocked = true;
   }
   check("ISC-160: TYPE_REGISTRY is frozen against mutation", mutationBlocked);
+
+  // ── LIFEOS-PRIVATE (skill-lesson) ──
+  // 10b. Shallow-freeze guard: the nested skill-lesson entry is frozen too, so
+  // its tier/write_mode can't be mutated at runtime past the top-level freeze.
+  let nestedFrozen = false;
+  try {
+    (TYPE_REGISTRY["skill-lesson"] as any).tier = "A";
+    nestedFrozen = TYPE_REGISTRY["skill-lesson"].tier === "C";
+  } catch { nestedFrozen = true; }
+  check("skill-lesson registry entry is frozen (nested, not just top-level)", nestedFrozen);
+  // ── END LIFEOS-PRIVATE ──
 
   // 11. Bad-actor rejection
   let actorRejected = false;
