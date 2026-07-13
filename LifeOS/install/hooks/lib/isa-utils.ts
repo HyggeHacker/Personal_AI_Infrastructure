@@ -1229,7 +1229,7 @@ export function upsertSession(sessionUUID: string, sessionName: string, task: st
         sessionUUID: sessionUUID,
         phase: mode === 'native' ? 'native' : 'starting',
         progress: '0/0',
-        effort: mode === 'native' ? '' : 'E1',
+        effort: '', // untiered: effort tiers retired 2026-07-11; new rows carry no tier
         mode: mode,
         started: timestamp,
         updatedAt: timestamp,
