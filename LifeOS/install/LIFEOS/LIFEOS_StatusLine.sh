@@ -58,6 +58,11 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 
 LIFEOS_DIR="${LIFEOS_DIR:-$HOME/.claude/LIFEOS}"
+# Defensive: if LIFEOS_DIR leaked into the env unexpanded (a literal "$HOME/…"
+# with a raw '$') or points nowhere, fall back to the real path so config/cache
+# reads still resolve.
+case "$LIFEOS_DIR" in *'$'*) LIFEOS_DIR="$HOME/.claude/LIFEOS" ;; esac
+[ -d "$LIFEOS_DIR" ] || LIFEOS_DIR="$HOME/.claude/LIFEOS"
 CLAUDE_HOME="$HOME/.claude"
 SETTINGS_FILE="$CLAUDE_HOME/settings.json"
 RATINGS_FILE="$LIFEOS_DIR/MEMORY/LEARNING/SIGNALS/ratings.jsonl"
@@ -1190,6 +1195,35 @@ fi
 # NORMAL MODE: Full multi-line output (80+ columns)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ── Per-row visibility (managed by /statusline → StatuslineRows.ts) ──
+SLR_header=1; SLR_state=0; SLR_mode=1; SLR_memory_health=0; SLR_env=1
+SLR_agents=1; SLR_context=1; SLR_files=0; SLR_pwd=1; SLR_memory=1; SLR_quote=1; SLR_use=1
+_slr_conf="$LIFEOS_DIR/USER/CONFIG/statusline-rows.conf"
+[ -f "$_slr_conf" ] && . "$_slr_conf"
+_row_on() { local _v="SLR_$1"; [ "${!_v}" = "1" ]; }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BILLING PROVIDER BADGE (ported from v5 statusline)
+# ─────────────────────────────────────────────────────────────────────────────
+# Toggled via CLAUDE_CODE_USE_FOUNDRY env var (set by foundry-on/foundry-off
+# shell functions). Renders a colored provider badge in the header — blue FOUNDRY
+# with the active Azure resource name, or tan ANTHROPIC for direct API. Explicit
+# ANSI codes are kept from v5 (literal brand colors, deliberately outside the
+# SLATE_* palette).
+if [ "$CLAUDE_CODE_USE_FOUNDRY" = "1" ]; then
+    billing_provider="FOUNDRY"
+    billing_resource="${ANTHROPIC_FOUNDRY_RESOURCE:-unknown}"
+    billing_badge_full="\033[48;2;0;120;212m\033[38;2;255;255;255m FOUNDRY \033[0m \033[38;2;0;120;212m${billing_resource}\033[0m"
+    billing_badge_plain="FOUNDRY ${billing_resource} │ "
+    billing_badge_short="\033[48;2;0;120;212m\033[38;2;255;255;255m FND \033[0m"
+else
+    billing_provider="ANTHROPIC"
+    billing_resource=""
+    billing_badge_full="\033[38;2;217;119;87mANTHROPIC\033[0m"
+    billing_badge_plain="ANTHROPIC │ "
+    billing_badge_short="\033[38;2;217;119;87mAPI\033[0m"
+fi
+
 # Output LifeOS branding line: LifeOS │ CITY, STATE 🇺🇸  HH:MM  ☁️ temp [│ session]
 # City + state arrive uppercased from the location prefetch; flag is rendered there too.
 _hdr_loc=""
@@ -1204,17 +1238,19 @@ _hdr_loc_plain=""
 _hdr_loc_plain="${_hdr_loc_plain}${location_city}"
 [ -n "$location_state" ] && _hdr_loc_plain="${_hdr_loc_plain}, ${location_state}"
 [ -z "$_hdr_loc_plain" ] && _hdr_loc_plain="—"
+if _row_on header; then
 if [ -n "$session_display" ]; then
-    printf "${LIFEOS_P}LI${LIFEOS_A}FE${LIFEOS_I}OS${RESET} ${SLATE_600}│${RESET} ${_hdr_loc}  ${LIFEOS_TIME}${current_time}${RESET}  ${LIFEOS_WEATHER}${weather_str}${RESET} ${SLATE_600}│${RESET} ${LIFEOS_SESSION}${session_display}${RESET}\n"
+    printf "${billing_badge_full} ${SLATE_600}│${RESET} ${LIFEOS_P}LI${LIFEOS_A}FE${LIFEOS_I}OS${RESET} ${SLATE_600}│${RESET} ${_hdr_loc}  ${LIFEOS_TIME}${current_time}${RESET}  ${LIFEOS_WEATHER}${weather_str}${RESET} ${SLATE_600}│${RESET} ${LIFEOS_SESSION}${session_display}${RESET}\n"
 else
-    _hdr_left="LIFEOS │ ${_hdr_loc_plain}  ${current_time}  ${weather_str} "
+    _hdr_left="${billing_badge_plain}LIFEOS │ ${_hdr_loc_plain}  ${current_time}  ${weather_str} "
     _hdr_fill=$((content_width - ${#_hdr_left}))
     [ "$_hdr_fill" -lt 2 ] && _hdr_fill=2
     _hdr_dashes=$(_repeat_chars "$_hdr_fill" "─")
-    printf "${LIFEOS_P}LI${LIFEOS_A}FE${LIFEOS_I}OS${RESET} ${SLATE_600}│${RESET} ${_hdr_loc}  ${LIFEOS_TIME}${current_time}${RESET}  ${LIFEOS_WEATHER}${weather_str}${RESET} ${SLATE_600}${_hdr_dashes}${RESET}\n"
+    printf "${billing_badge_full} ${SLATE_600}│${RESET} ${LIFEOS_P}LI${LIFEOS_A}FE${LIFEOS_I}OS${RESET} ${SLATE_600}│${RESET} ${_hdr_loc}  ${LIFEOS_TIME}${current_time}${RESET}  ${LIFEOS_WEATHER}${weather_str}${RESET} ${SLATE_600}${_hdr_dashes}${RESET}\n"
 fi
-printf "${SLATE_600}%s${RESET}\n" "$SEP_DASHED"
+fi
 
+if _row_on state; then
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE: STATE METER — dimension meters toward Ideal State
 # Reads LIFEOS/USER/TELOS/LIFEOS_STATE.json (written by ComputeGap.ts on a schedule).
@@ -1303,10 +1339,11 @@ for _i in "${!_dims[@]}"; do
 done
 printf "\n"
 fi
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MODE — current session's LifeOS mode + four-level intelligence level.
-# Renders directly below STATE, above MEMORY. Sources (read-only, every tick):
+# Renders directly below the header. Sources (read-only, every tick):
 #   1. work.json .sessions[] row matching this session_id (sessionUUID equality,
 #      latest updatedAt wins) → currentMode (minimal|native|algorithm) + effort (E1-E5)
 #   2. effort-router.jsonl (classifier telemetry) → tier fallback for the window
@@ -1440,9 +1477,6 @@ _pm_level_c() {
     esac
 }
 
-# Dotted divider between STATE and MODE — only rendered when STATE is shown.
-[ "$_state_has_data" = "true" ] && printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
-
 # Build the enumerated line: every option listed, only the active one colored.
 # Icon-only label: ⚙️ leads the work/mode/level line (principal directive
 # 2026-06-11 — the previous 🎛️ rendered as a grid fallback glyph in his font).
@@ -1521,7 +1555,9 @@ for _pm_l in LOW MEDIUM HIGH XHIGH MAX ULTRA; do
     fi
 done
 
+if _row_on mode; then
 printf "%b\n" "$_pm_line"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MEMORY — one line directly under STATE: autonomic-loop health + hot-layer fill.
@@ -1545,7 +1581,7 @@ _recency_str() {
     else echo "${m}m"; fi
 }
 
-if [ "$MODE" = "normal" ] && [ -f "$_review_state_file" ]; then
+if [ "$MODE" = "normal" ] && _row_on memory_health && [ -f "$_review_state_file" ]; then
     _mem_turns=$(jq -r '.turn_count_since_last_review // 0' "$_review_state_file" 2>/dev/null)
     _mem_pending=$(jq -r '.pending_review // false' "$_review_state_file" 2>/dev/null)
     _mem_last_review=$(jq -r '.last_review_at // ""' "$_review_state_file" 2>/dev/null)
@@ -1647,26 +1683,9 @@ _model_display="${model_name// context/}"
 if [ -n "${_pm_level_model:-}" ]; then
     _model_display="$(printf '%s' "$_pm_level_model" | cut -c1)$(printf '%s' "$_pm_level_model" | cut -c2- | tr '[:upper:]' '[:lower:]')"
 fi
-# ─────────────────────────────────────────────────────────────────────────────
-# BILLING PROVIDER BADGE (ported from v5 statusline)
-# ─────────────────────────────────────────────────────────────────────────────
-# Toggled via CLAUDE_CODE_USE_FOUNDRY env var (set by foundry-on/foundry-off
-# shell functions). Renders a colored ENV: badge as the leading segment of the
-# info line below — blue FOUNDRY with the active Azure resource name, or tan
-# ANTHROPIC for direct API. Explicit ANSI codes are kept from v5 (literal brand
-# colors, deliberately outside the SLATE_* palette).
-if [ "$CLAUDE_CODE_USE_FOUNDRY" = "1" ]; then
-    billing_provider="FOUNDRY"
-    billing_resource="${ANTHROPIC_FOUNDRY_RESOURCE:-unknown}"
-    billing_badge_full="\033[48;2;0;120;212m\033[38;2;255;255;255m FOUNDRY \033[0m \033[38;2;0;120;212m${billing_resource}\033[0m"
-    billing_badge_short="\033[48;2;0;120;212m\033[38;2;255;255;255m FND \033[0m"
-else
-    billing_provider="ANTHROPIC"
-    billing_resource=""
-    billing_badge_full="\033[38;2;217;119;87mANTHROPIC\033[0m"
-    billing_badge_short="\033[38;2;217;119;87mAPI\033[0m"
+if _row_on env; then
+printf "${SLATE_400}◈${RESET} ${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
 fi
-printf "${SLATE_400}◈ ENV:${RESET} ${billing_badge_full} ${SLATE_600}│${RESET} ${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
 
 # ── AGENTS roster — which model the ROUTER assigns delegated agents at the current
 # mode/tier (persistent; "not only the default model, but the models the agents run
@@ -1698,7 +1717,7 @@ _pm_roster_states() {
     printf '%s %s %s %s %s' "$maxs" "$highs" "$meds" "$lows" "$forge"
 }
 
-if [ "$MODE" = "normal" ]; then
+if [ "$MODE" = "normal" ] && _row_on agents; then
     # Resolve rung → model NAME from models.ts (same source the MODEL line + the
     # AgentInvocation hook read). Fallbacks keep the line honest if models.ts is
     # unreadable in a hook-spawn context.
@@ -1782,8 +1801,11 @@ bar_width=$(( content_width - 11 - _ctx_suffix_len ))
 [ "$bar_width" -lt 16 ] && bar_width=16
 
 bar=$(render_context_bar $bar_width $display_pct)
+if _row_on context; then
 printf "${CTX_SECONDARY}◉ CONTEXT:${RESET} ${bar} ${pct_color}${display_pct}%%${RESET}\n"
+fi
 
+if _row_on files; then
 # Thin separator between context bar and files
 printf "${SLATE_600}%s${RESET}\n" "$SEP_DOT"
 
@@ -1984,6 +2006,15 @@ if [ "$_ctx_count" -gt 0 ]; then
     printf "  "
     printf '%b\n' "${_output}"
 fi
+fi
+
+# ── PWD — current working directory basename.
+if _row_on pwd; then
+printf "${SLATE_400}◈ PWD:${RESET} ${LIFEOS_A}${dir_name}${RESET}\n"
+fi
+if _row_on memory; then
+printf "${LEARN_PRIMARY}◎ MEMORY:${RESET} ${LEARN_WORK}📁${RESET}${SLATE_300}${work_count}${RESET} ${SLATE_400}Work${RESET} ${SLATE_600}│${RESET} ${LEARN_SIGNALS}✦${RESET}${SLATE_300}${ratings_count}${RESET} ${SLATE_400}Ratings${RESET} ${SLATE_600}│${RESET} ${LEARN_SESSIONS}⊕${RESET}${SLATE_300}${sessions_count}${RESET} ${SLATE_400}Sessions${RESET} ${SLATE_600}│${RESET} ${LEARN_PRIMARY}◇${RESET}${SLATE_300}${research_count}${RESET} ${SLATE_400}Research${RESET}\n"
+fi
 sep
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1991,6 +2022,7 @@ sep
 # ═══════════════════════════════════════════════════════════════════════════════
 # NOTE: usage_5h, usage_7d, usage_5h_reset, usage_7d_reset populated by PARALLEL PREFETCH
 
+if _row_on use; then
 usage_5h_int=${usage_5h%%.*}
 usage_7d_int=${usage_7d%%.*}
 [ -z "$usage_5h_int" ] && usage_5h_int=0
@@ -2081,17 +2113,13 @@ if [ "${usage_no_data:-false}" != "true" ] && { [ "$usage_5h_int" -gt 0 ] || [ "
     [ -n "$stale_suffix" ] && printf "${stale_suffix}"
     printf "\n"
 fi
-
-# ── PWD — current working directory basename, always the final row. Ported from
-#    the v5 statusline (row-identity glyph + dir); replaces the old trailing
-#    separator so it adds identity without adding height.
-printf "${SLATE_400}◈ PWD:${RESET} ${LIFEOS_A}${dir_name}${RESET}\n"
+fi
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 7: QUOTE (normal mode only)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-if [ "$MODE" = "normal" ] && [ -f "$QUOTES_FILE" ]; then
+if [ "$MODE" = "normal" ] && _row_on quote && [ -f "$QUOTES_FILE" ]; then
     # Curated corpus, deterministic time-based selection — same quote for each
     # 60-second window, no cache, no network.
     quote_count=$(wc -l < "$QUOTES_FILE" 2>/dev/null | tr -d ' ')
@@ -2165,3 +2193,4 @@ if [ "$MODE" = "normal" ] && [ -f "$QUOTES_FILE" ]; then
         fi
     fi
 fi
+sep
