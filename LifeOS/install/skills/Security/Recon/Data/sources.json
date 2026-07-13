@@ -1,0 +1,29 @@
+{
+  "_comment": "Currency registry for the Recon skill's Project Discovery toolchain, per LIFEOS/DOCUMENTATION/Currency/CurrencySystem.md. Each source is a pdtm-managed binary tracked by version. current_version is 'unstamped' until the first ToolCurrency stamp records the installed version (an unstamped fact is reconstructed until re-fetched). Freshness state lives in ../State/currency-state.json. Validate with: bun LIFEOS/TOOLS/Currency.ts validate skills/Security/Recon/Data/sources.json",
+  "sources": [
+    {"id": "subfinder", "name": "subfinder", "url": "https://github.com/projectdiscovery/subfinder", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Subdomain enumeration"},
+    {"id": "httpx", "name": "httpx", "url": "https://github.com/projectdiscovery/httpx", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "HTTP probing and tech detection"},
+    {"id": "nuclei", "name": "nuclei", "url": "https://github.com/projectdiscovery/nuclei", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Vulnerability scanning"},
+    {"id": "naabu", "name": "naabu", "url": "https://github.com/projectdiscovery/naabu", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Port scanning"},
+    {"id": "dnsx", "name": "dnsx", "url": "https://github.com/projectdiscovery/dnsx", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "DNS toolkit"},
+    {"id": "chaos-client", "name": "chaos-client", "url": "https://github.com/projectdiscovery/chaos-client", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Chaos subdomain database client"},
+    {"id": "katana", "name": "katana", "url": "https://github.com/projectdiscovery/katana", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Web crawling"},
+    {"id": "tlsx", "name": "tlsx", "url": "https://github.com/projectdiscovery/tlsx", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "TLS/SSL analysis"},
+    {"id": "cdncheck", "name": "cdncheck", "url": "https://github.com/projectdiscovery/cdncheck", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "CDN detection"},
+    {"id": "asnmap", "name": "asnmap", "url": "https://github.com/projectdiscovery/asnmap", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "ASN mapping"},
+    {"id": "mapcidr", "name": "mapcidr", "url": "https://github.com/projectdiscovery/mapcidr", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "CIDR manipulation"},
+    {"id": "uncover", "name": "uncover", "url": "https://github.com/projectdiscovery/uncover", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Search engine dorking"},
+    {"id": "alterx", "name": "alterx", "url": "https://github.com/projectdiscovery/alterx", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Subdomain wordlist generation"},
+    {"id": "shuffledns", "name": "shuffledns", "url": "https://github.com/projectdiscovery/shuffledns", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "DNS bruteforcing"},
+    {"id": "cloudlist", "name": "cloudlist", "url": "https://github.com/projectdiscovery/cloudlist", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Cloud asset discovery"},
+    {"id": "notify", "name": "notify", "url": "https://github.com/projectdiscovery/notify", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Notification system"},
+    {"id": "interactsh-client", "name": "interactsh-client", "url": "https://github.com/projectdiscovery/interactsh", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "OOB interaction server client"},
+    {"id": "proxify", "name": "proxify", "url": "https://github.com/projectdiscovery/proxify", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "HTTP proxy"},
+    {"id": "tldfinder", "name": "tldfinder", "url": "https://github.com/projectdiscovery/tldfinder", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "TLD discovery"},
+    {"id": "urlfinder", "name": "urlfinder", "url": "https://github.com/projectdiscovery/urlfinder", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "URL extraction"},
+    {"id": "vulnx", "name": "vulnx", "url": "https://github.com/projectdiscovery/vulnx", "type": "tool", "track": "version", "method": "pdtm", "current_version": "unstamped", "categories": ["projectdiscovery"], "why": "Vulnerability aggregation"}
+  ],
+  "categories": {
+    "projectdiscovery": {"name": "Project Discovery toolchain", "description": "pdtm-managed recon binaries tracked by version"}
+  }
+}
