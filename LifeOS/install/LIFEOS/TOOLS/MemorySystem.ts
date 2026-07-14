@@ -195,6 +195,46 @@ function enqueueProposal(item: TypedItem & { type: "proposal" }): { ok: true; id
   }
 }
 
+// ── LIFEOS-PRIVATE (skill-lesson) ── (fenced for trivial upstream rebase; see danielmiessler/LifeOS#1450)
+/**
+ * Enqueue a skill-lesson to its OWN pending-skill-lessons.jsonl queue (resolved via
+ * the registry), isolated from the identity-proposal queue. A skill-lesson carries a
+ * skill + target section + the objective signal + a dedup hash + a provenance
+ * stamp — not the identity-proposal (target_kind, edit, rationale) shape — so it
+ * gets a dedicated writer rather than being squeezed through enqueueProposal.
+ * `kind: "skill-lesson"` lets the Telegram surfacer and any future dedup pass
+ * tell the two row shapes apart.
+ */
+function enqueueSkillLesson(item: TypedItem & { type: "skill-lesson" }): { ok: true; id: string } | AddError {
+  const id = generateProposalId();
+  const path = resolveStoragePath(item);
+  try {
+    mkdirSync(dirname(path), { recursive: true });
+    appendFileSync(
+      path,
+      JSON.stringify({
+        id,
+        ts: new Date().toISOString(),
+        status: "pending",
+        kind: "skill-lesson",
+        skill: item.skill,
+        target_section: item.target_section,
+        lesson: item.lesson,
+        signal: item.signal,
+        signal_hash: item.signal_hash,
+        confidence: item.confidence,
+        provenance: item.provenance,
+        source_session: item.source_session ?? null,
+      }) + "\n",
+      "utf8",
+    );
+    return { ok: true, id };
+  } catch (e: any) {
+    return { ok: false, code: "EWRITE_FAILED", message: `Skill-lesson enqueue failed: ${e?.message}` };
+  }
+}
+// ── END LIFEOS-PRIVATE ──
+
 function generateProposalId(): string {
   // Short, sortable, collision-resistant enough for human use
   const ts = Date.now().toString(36);
@@ -506,22 +546,30 @@ export function add(item: TypedItem): AddResult {
     return { ok: false, code: "EINVAL_ITEM", message: `Storage path resolution failed: ${e?.message}` };
   }
 
-  // Defense-in-depth: for direct writes (set-overwrite, append), the registry's
-  // declared tier must match the classifier's tier for the resolved path.
-  // For queue writes, the destination is a holding-area JSONL — the *target*
-  // of the eventual application is the Tier C file (carried on the item as
-  // target_file), not the queue file itself. So we skip the check for queue.
-  if (entry.write_mode !== "queue") {
-    const resolvedTier = getTier(path);
-    if (resolvedTier !== entry.tier) {
-      return {
-        ok: false,
-        code: "ETIER_MISMATCH",
-        message: `Type '${item.type}' declares tier ${entry.tier}, but resolved path ${path} classifies as tier ${resolvedTier}. This is a registry/classifier disagreement — fix one or the other.`,
-        declared_tier: entry.tier,
-        resolved_tier: resolvedTier,
-      };
-    }
+  // Defense-in-depth: the registry's declared tier must match the classifier's
+  // tier for the item's RESOLVED STORAGE PATH — the file this add() physically
+  // writes. This holds for EVERY write mode, including `queue`.
+  //
+  // ── LIFEOS-PRIVATE (skill-lesson) ── (fenced for trivial upstream rebase; see #1450)
+  // The old code skipped this check for `queue`, reasoning that a queue write
+  // lands in a holding-file whose *eventual* target is applied later. But the
+  // check's subject is the write add() ACTUALLY performs — the queue file —
+  // never the downstream target. Skipping it let any queue-type's resolver aim
+  // at an un-allowlisted path (e.g. a sensitive file) with no tier gate. The
+  // fix: check the resolved path for all modes. Legit queue types pass because
+  // their holding files (pending-proposals.jsonl, pending-skill-lessons.jsonl)
+  // are Tier-C-allowlisted in MutationTier. The skill-lesson's eventual SKILL.md
+  // target stays Tier D — add() never writes it; the human-gated apply arm does.
+  // ── END LIFEOS-PRIVATE ──
+  const resolvedTier = getTier(path);
+  if (resolvedTier !== entry.tier) {
+    return {
+      ok: false,
+      code: "ETIER_MISMATCH",
+      message: `Type '${item.type}' declares tier ${entry.tier}, but resolved path ${path} classifies as tier ${resolvedTier}. This is a registry/classifier disagreement — fix one or the other.`,
+      declared_tier: entry.tier,
+      resolved_tier: resolvedTier,
+    };
   }
 
   switch (entry.write_mode) {
@@ -530,9 +578,26 @@ export function add(item: TypedItem): AddResult {
     case "append":
       return addNoteTypeItem(item as TypedItem & { type: "idea" | "knowledge" }, path);
     case "queue": {
-      const r = enqueueProposal(item as TypedItem & { type: "proposal" });
-      if (!r.ok) return r;
-      return { ok: true, type: "proposal", path, detail: { id: r.id, status: "queued" } };
+      // Propose-only types queue here; dispatch by type so each keeps its own row
+      // shape. Exhaustive by type — a future queue type with no handler returns an
+      // error rather than silently enqueuing a wrong-schema row through the wrong writer.
+      // ── LIFEOS-PRIVATE (skill-lesson) ──
+      if (item.type === "skill-lesson") {
+        const r = enqueueSkillLesson(item);
+        if (!r.ok) return r;
+        return { ok: true, type: "skill-lesson", path, detail: { id: r.id, status: "queued" } };
+      }
+      // ── END LIFEOS-PRIVATE ──
+      if (item.type === "proposal") {
+        const r = enqueueProposal(item);
+        if (!r.ok) return r;
+        return { ok: true, type: "proposal", path, detail: { id: r.id, status: "queued" } };
+      }
+      return {
+        ok: false,
+        code: "EUNKNOWN_TYPE",
+        message: `queue write_mode has no handler for type '${(item as any).type}'`,
+      };
     }
   }
 }

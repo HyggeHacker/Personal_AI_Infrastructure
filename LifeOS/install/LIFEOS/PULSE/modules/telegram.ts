@@ -31,6 +31,16 @@ import {
   type ProposalRow,
   type ProposalReply,
 } from "../lib/telegram-proposals"
+// ── LIFEOS-PRIVATE (skill-lesson) ── inward-arrow surface + apply arm (see danielmiessler/LifeOS#1450)
+import {
+  loadSkillLessonQueue,
+  markSkillLesson,
+  formatSkillLessonMessage,
+  applySkillLesson,
+  logSkillLessonReply,
+  type SkillLessonRow,
+} from "../lib/telegram-skill-lessons"
+// ── END LIFEOS-PRIVATE ──
 import { stripModeScaffolding, hasModeScaffolding } from "../lib/strip-mode-scaffolding"
 
 // BILLING: Strip ANTHROPIC_API_KEY and ANTHROPIC_AUTH_TOKEN before any SDK
@@ -522,6 +532,91 @@ async function handleProposalReply(chatId: number, reply: ProposalReply, ctx: { 
   }
   return "handled"
 }
+
+// ── LIFEOS-PRIVATE (skill-lesson) ── inward-arrow surface + apply arm (see #1450)
+//
+// Skill-lessons ride their OWN queue and apply arm, isolated from identity
+// proposals. The reply grammar is shared (yes/no/edit #id); routing checks the
+// skill-lesson queue FIRST and returns "passthrough" when the id isn't ours, so
+// identity proposals still resolve. `lessons` lists pending skill-lessons.
+
+function parseLessonsCommand(text: string): boolean {
+  return /^lessons?$/i.test(text.trim())
+}
+
+async function surfaceSkillLessonToChat(chatId: number, row: SkillLessonRow): Promise<boolean> {
+  if (!bot) return false
+  try {
+    await bot.api.sendMessage(chatId, formatSkillLessonMessage(row))
+    markSkillLesson(row.id, { status: "sent", surfaced_at: new Date().toISOString() })
+    logSkillLessonReply({ id: row.id, skill: row.skill, status: "sent" })
+    return true
+  } catch (e) {
+    log("warn", "surfaceSkillLessonToChat: send failed", { id: row.id, error: String(e) })
+    return false
+  }
+}
+
+async function drainPendingSkillLessons(chatId: number, maxPerCall: number = 1): Promise<number> {
+  const pending = loadSkillLessonQueue().filter((r) => r.status === "pending")
+  let sent = 0
+  for (const row of pending.slice(0, maxPerCall)) {
+    if (await surfaceSkillLessonToChat(chatId, row)) sent += 1
+  }
+  return sent
+}
+
+async function listSkillLessons(chatId: number, ctx: { reply: (text: string) => Promise<unknown> }): Promise<void> {
+  const showable = loadSkillLessonQueue().filter((r) => r.status === "pending" || r.status === "sent")
+  if (showable.length === 0) {
+    await ctx.reply("🧩 No pending skill-lessons.").catch(() => {})
+    return
+  }
+  for (const row of showable) {
+    await ctx.reply(formatSkillLessonMessage(row)).catch(() => {})
+    if (row.status === "pending") markSkillLesson(row.id, { status: "sent", surfaced_at: new Date().toISOString() })
+  }
+  logSkillLessonReply({ kind: "list", count: showable.length, chatId })
+}
+
+// Returns "handled" when the reply targets a skill-lesson id; "passthrough"
+// otherwise (including `list`, which is served by the `lessons` command), so the
+// identity-proposal handler still runs for its own ids.
+async function handleSkillLessonReply(
+  chatId: number,
+  reply: ProposalReply,
+  ctx: { reply: (text: string) => Promise<unknown> },
+): Promise<"handled" | "passthrough"> {
+  if (reply.kind === null || reply.kind === "list") return "passthrough"
+  const row = loadSkillLessonQueue().find((r) => r.id === reply.id)
+  if (!row) return "passthrough" // not a skill-lesson id — let identity proposals try
+
+  if (reply.kind === "no") {
+    markSkillLesson(row.id, { status: "rejected", resolved_at: new Date().toISOString() })
+    logSkillLessonReply({ kind: "no", id: row.id, skill: row.skill, outcome: "rejected", chatId })
+    await ctx.reply("🚫 Discarded skill-lesson.").catch(() => {})
+    return "handled"
+  }
+
+  const lessonText = reply.kind === "edit" ? reply.editText : row.lesson
+  if (reply.kind === "edit" && (!lessonText || lessonText.length === 0)) {
+    await ctx.reply(`✏️ Provide the edited lesson: \`edit #${reply.id} <your text>\``).catch(() => {})
+    return "handled"
+  }
+  const result = applySkillLesson(row.skill, lessonText, row.provenance)
+  if (result.ok) {
+    const status = reply.kind === "edit" ? "edited" : "accepted"
+    markSkillLesson(row.id, { status, resolved_at: new Date().toISOString(), applied_lesson: lessonText })
+    logSkillLessonReply({ kind: reply.kind, id: row.id, skill: row.skill, outcome: result.skipped ? "duplicate-skipped" : "applied", chatId })
+    const note = result.skipped ? `already in ${row.skill}'s Gotchas (skipped duplicate)` : `landed in ${row.skill}'s ## Gotchas`
+    await ctx.reply(`✅ ${note}`).catch(() => {})
+  } else {
+    logSkillLessonReply({ kind: reply.kind, id: row.id, skill: row.skill, outcome: "apply-failed", reason: result.reason, chatId })
+    await ctx.reply(`❌ Couldn't apply skill-lesson: ${result.reason}`).catch(() => {})
+  }
+  return "handled"
+}
+// ── END LIFEOS-PRIVATE ──
 
 // ── Voice Summary Pipeline ──
 
@@ -1230,6 +1325,12 @@ A belt-and-suspenders egress sanitizer (LIFEOS/PULSE/lib/strip-mode-scaffolding.
         log("warn", "drainPendingProposals failed", { error: String(e) })
       })
 
+      // ── LIFEOS-PRIVATE (skill-lesson) ── also surface one pending skill-lesson per turn (see #1450)
+      drainPendingSkillLessons(chatId, 1).catch((e) => {
+        log("warn", "drainPendingSkillLessons failed", { error: String(e) })
+      })
+      // ── END LIFEOS-PRIVATE ──
+
     } catch (err) {
       log("error", "Message processing failed", { error: String(err) })
       await ctx.reply("Something went wrong processing your message. Try again?").catch(() => {})
@@ -1264,8 +1365,22 @@ A belt-and-suspenders egress sanitizer (LIFEOS/PULSE/lib/strip-mode-scaffolding.
     // F7: intercept proposal replies BEFORE the SDK runs. `yes #id` / `no #id`
     // / `edit #id <text>` / `proposals` are handled directly without invoking
     // the agent. Anything else falls through to the normal SDK path.
+    // ── LIFEOS-PRIVATE (skill-lesson) ── `lessons` list + skill-lesson replies (own queue) (see #1450)
+    if (parseLessonsCommand(sanitized)) {
+      await listSkillLessons(chatId, ctx)
+      log("info", "Listed skill-lessons", { chatId })
+      return
+    }
+    // ── END LIFEOS-PRIVATE ──
     const proposalReply = parseProposalReply(sanitized)
     if (proposalReply.kind !== null) {
+      // ── LIFEOS-PRIVATE (skill-lesson) ── try the skill-lesson queue first; passthrough → identity proposals (see #1450)
+      const slOutcome = await handleSkillLessonReply(chatId, proposalReply, ctx)
+      if (slOutcome === "handled") {
+        log("info", "Handled skill-lesson reply", { kind: proposalReply.kind, chatId })
+        return
+      }
+      // ── END LIFEOS-PRIVATE ──
       const outcome = await handleProposalReply(chatId, proposalReply, ctx)
       if (outcome === "handled") {
         log("info", "Handled proposal reply", { kind: proposalReply.kind, chatId })

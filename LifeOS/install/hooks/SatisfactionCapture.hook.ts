@@ -37,6 +37,9 @@ import { getIdentity, getPrincipal, getPrincipalName } from './lib/identity';
 import { getLearningCategory } from './lib/learning-utils';
 import { getISOTimestamp, getPSTComponents } from './lib/time';
 import { captureFailure } from '../LIFEOS/TOOLS/FailureCapture';
+// ── LIFEOS-PRIVATE (skill-lesson) ── inward-arrow capture arm (see danielmiessler/LifeOS#1450)
+import { captureSkillLesson } from '../LIFEOS/TOOLS/SkillLessonCapture';
+// ── END LIFEOS-PRIVATE ──
 import { addRatingPulse } from './lib/isa-utils';
 
 // Normalize env path vars that Claude Code injects without shell expansion (LifeOS#1404)
@@ -254,6 +257,26 @@ This response was rated ${rating}/10 by ${getPrincipalName()}. Use this as an im
   console.error(`[SatisfactionCapture] Captured low ${source} rating learning`);
 }
 
+// ── LIFEOS-PRIVATE (skill-lesson) ── inward-arrow capture arm (see #1450)
+/**
+ * Attribute this low-rated turn to a skill and, if unambiguous + novel + under
+ * cap, enqueue a provenance-stamped skill-lesson for human approval. Best-effort
+ * and non-throwing: any failure here must never break rating capture.
+ */
+function maybeCaptureSkillLesson(rating: number, sessionId: string, ratingTs: string, lessonText: string): void {
+  try {
+    const outcome = captureSkillLesson({ ratingTs, rating, sessionId, lessonText });
+    if (outcome.captured) {
+      console.error(`[SatisfactionCapture] skill-lesson queued for ${outcome.skill} (#${outcome.id})`);
+    } else {
+      console.error(`[SatisfactionCapture] skill-lesson not captured: ${outcome.reason}`);
+    }
+  } catch (err) {
+    console.error(`[SatisfactionCapture] skill-lesson capture error: ${err}`);
+  }
+}
+// ── END LIFEOS-PRIVATE ──
+
 // ── Inference Prompt ──
 
 const PRINCIPAL_NAME = getPrincipal().name;
@@ -309,6 +332,9 @@ async function main() {
 
       if (explicitResult.rating < 5) {
         captureLowRatingLearning(explicitResult.rating, explicitResult.comment || '', lastResponse, 'explicit');
+        // ── LIFEOS-PRIVATE (skill-lesson) ── the user's comment is the lesson candidate (see #1450)
+        maybeCaptureSkillLesson(explicitResult.rating, sessionId, entry.timestamp, explicitResult.comment || '');
+        // ── END LIFEOS-PRIVATE ──
         if (explicitResult.rating <= 3) {
           await captureFailure({
             transcriptPath: data.transcript_path,
