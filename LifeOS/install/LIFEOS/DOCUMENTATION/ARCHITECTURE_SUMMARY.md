@@ -1,5 +1,5 @@
 ---
-last_updated: 2026-07-12T05:14:21.392Z
+last_updated: 2026-07-15T18:47:20.344Z
 last_updated_by: ArchitectureSummaryGenerator
 convention: pai-freshness-v1
 derived_from: LIFEOS/DOCUMENTATION/LifeosSystemArchitecture.md
@@ -15,7 +15,7 @@ generator: LIFEOS/TOOLS/ArchitectureSummaryGenerator.ts
 LifeOS — the **Life Operating System**, built on the LifeOS (LifeOS) layer — is the framework that knows your goals, people, and current state, and continuously hill-climbs you toward your ideal state.
 Everything below is the machinery of that one loop: Current State → Ideal State via verifiable iteration (ISC). Canonical thesis: `LIFEOS/DOCUMENTATION/LifeOs/LifeOsThesis.md`.
 
-**Current versions:** LifeOS 7.0.0 | Algorithm v8.3.0 | System Prompt v3.0.1 | Memory v8.2.0
+**Current versions:** LifeOS 7.0.0 | Algorithm v8.4.0 | System Prompt v3.0.1 | Memory v8.2.0
 
 Doc routing lives in CLAUDE.md; founding principles + full section map in the master doc.
 
@@ -42,6 +42,6 @@ One line per pipeline. Full wiring, file inventories, and incident notes: master
 ## Cross-References
 
 - Full architecture: `LIFEOS/DOCUMENTATION/LifeosSystemArchitecture.md`
-- Algorithm spec: `LIFEOS/ALGORITHM/v8.3.0.md`
+- Algorithm spec: `LIFEOS/ALGORITHM/v8.4.0.md`
 - ISA format: `LIFEOS/DOCUMENTATION/Isa/IsaFormat.md`
 - Config system: `LIFEOS/DOCUMENTATION/Config/ConfigSystem.md`
