@@ -170,6 +170,25 @@ You excel at preventing single-perspective blindness by considering all stakehol
 
 ## Research Methodology
 
+### PRIMARY TOOL — Gemini via OpenRouter
+
+**This is your engine: actually call Gemini, do not just WebSearch as Claude.** Gemini 3 Pro is reached through the OpenRouter broker (`OpenRouter.ts`), which reads `OPENROUTER_API_KEY` from `~/.claude/.env`. One key covers Gemini plus the other OpenRouter-brokered models.
+
+```bash
+# Ask Gemini directly — system prompt, then the query/perspective
+bun ~/.claude/LIFEOS/TOOLS/OpenRouter.ts --model google/gemini-3-pro --level high \
+  "You are a multi-perspective research analyst. Hold contradictory viewpoints and stress-test conclusions against opposing views." \
+  "<your query variation>"
+
+# JSON output for structured synthesis
+bun ~/.claude/LIFEOS/TOOLS/OpenRouter.ts --model google/gemini-3-pro --json "<system>" "<query>"
+
+# If a call 404s, confirm the exact model id
+bun ~/.claude/LIFEOS/TOOLS/OpenRouter.ts --list-models --grep gemini
+```
+
+Run one call per perspective variation (step 3 below). Gemini's long context and multi-angle synthesis is your edge; WebSearch is a supplement for URL verification, not the primary engine.
+
 **Google Gemini Multi-Perspective Research:**
 
 1. Identify the core question

@@ -1635,6 +1635,8 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
     _lbl_forge="${_lbl_forge:-GPT-5.6}"
     _lbl_grok=$(sed -n '/export const CROSS_VENDOR/,/^}/p' "$_pm_models_ts" 2>/dev/null | sed -n 's/^[[:space:]]*grokResearcher:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | tr '[:lower:]' '[:upper:]')
     _lbl_grok="${_lbl_grok:-GROK-4.5}"
+    _lbl_gemini=$(sed -n '/export const CROSS_VENDOR/,/^}/p' "$_pm_models_ts" 2>/dev/null | sed -n 's/^[[:space:]]*geminiResearcher:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | sed 's#.*/##' | tr '[:lower:]' '[:upper:]')
+    _lbl_gemini="${_lbl_gemini:-GEMINI}"
 
     read -r _rs_max _rs_high _rs_med _rs_low _rs_forge \
         <<< "$(_pm_roster_states)"
@@ -1661,6 +1663,15 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
         ' "$_forge_starts" 2>/dev/null)
         [ "${_grok_live:-0}" -gt 0 ] 2>/dev/null && _rs_grok=2
     fi
+    # Gemini (Google via OpenRouter) — same cross-vendor treatment.
+    _rs_gemini=0
+    if [ -f "$_forge_starts" ]; then
+        _gemini_live=$(jq -r --argjson cutoff "$(( (NOW_EPOCH - 300) * 1000 ))" '
+            [to_entries[] | .value | select(.epoch > $cutoff)
+             | select((.subagent_type // "") | test("gemini"; "i"))] | length
+        ' "$_forge_starts" 2>/dev/null)
+        [ "${_gemini_live:-0}" -gt 0 ] 2>/dev/null && _rs_gemini=2
+    fi
     # Escalating rung ladder (principal directive 2026-07-06, corrected same day):
     # EVERY rung renders DIM unless it is the ACTIVE (primary-dispatch) rung.
     # The escalation lives in the hue — HAIKU green → SONNET blue → OPUS red →
@@ -1682,6 +1693,8 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
             forge:*)  printf '\033[2;38;2;85;160;175m'   ;;  # dim: muted cyan tint
             grok:2)   printf '\033[1;38;2;226;232;240m' ;;  # ACTIVE: bold silver — xAI cross-vendor
             grok:*)   printf '\033[2;38;2;125;135;148m'  ;;  # dim: muted gray tint
+            gemini:2) printf '\033[1;38;2;66;133;244m'  ;;  # ACTIVE: bold Google blue — Gemini cross-vendor
+            gemini:*) printf '\033[2;38;2;90;115;160m'   ;;  # dim: muted blue tint
         esac
     }
     _ar_tok() {  # $1=state $2=rung $3=label
@@ -1699,6 +1712,7 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
     _ar_line+=" ${SLATE_600}│${RESET} "
     _ar_line+="$(_ar_tok "$_rs_forge" forge "+$_lbl_forge")"
     _ar_line+=" $(_ar_tok "$_rs_grok" grok "+$_lbl_grok")"
+    _ar_line+=" $(_ar_tok "$_rs_gemini" gemini "+$_lbl_gemini")"
     printf "%b\n" "$_ar_line"
 fi
 
