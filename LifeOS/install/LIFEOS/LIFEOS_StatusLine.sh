@@ -1282,7 +1282,7 @@ fi
 # writes USER/CONFIG/statusline-rows.conf (user data, never shipped); when that
 # file exists it is sourced here and overrides these defaults.
 SLR_header=1; SLR_state=0; SLR_effort=1; SLR_memory_health=0; SLR_env=1
-SLR_agents=1; SLR_context=1; SLR_files=0; SLR_use=1; SLR_quote=1
+SLR_agents=1; SLR_context=1; SLR_files=0; SLR_use=1; SLR_quote=1; SLR_pwd=1
 _slr_conf="$LIFEOS_DIR/USER/CONFIG/statusline-rows.conf"
 [ -f "$_slr_conf" ] && . "$_slr_conf"
 _row_on() { local _v="SLR_$1"; [ "${!_v}" = "1" ]; }
@@ -1698,6 +1698,12 @@ sep
 # ═══════════════════════════════════════════════════════════════════════════════
 # LINE 1: CONTEXT
 # ═══════════════════════════════════════════════════════════════════════════════
+
+# PWD — current working directory (restored 2026-07-15; existed in v6, lost in the
+# v7 rebuild; upstream never shipped it — it shows only the git branch). Toggle via /statusline.
+if [ "$MODE" = "normal" ] && _row_on pwd; then
+    printf "${SLATE_400}◈ PWD:${RESET} ${LIFEOS_A}${dir_name}${RESET}\\n"
+fi
 
 # Context display — show percentage and bar (no token counts)
 context_max="${context_max:-200000}"
