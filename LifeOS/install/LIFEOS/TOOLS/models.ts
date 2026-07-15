@@ -62,18 +62,24 @@ export type EffortLevel = "max" | "high" | "medium" | "low";
  * rungs. Unspecified delegate models inherit the session model (harness
  * behavior).
  *
- * CARRIER REALITY — tool-contract facts, not steering (probes 2026-07-07 +
- * 2026-07-11, live-verified via modelUsage read-back; re-probe periodically):
- *   - Genuine Fable off the main loop is reached ONLY by SUBPROCESS —
- *     `Inference.ts --level max` spawns `claude --model claude-fable-5` and
- *     executes real Fable (proven: modelUsage key `claude-fable-5`,
- *     downgraded:false, cost matches Fable pricing).
- *   - NO Agent dispatch executes Fable — explicit `model: fable` (probe
- *     2026-07-07) AND bare inheritance from a Fable main loop (probe
- *     2026-07-11) both execute Opus. The 07-11 probe: the subagent's own
- *     system prompt claimed "Fable 5" while the transcript's assistant
- *     message ran claude-opus-4-8 with a `fallback` content block — a
- *     subagent's self-report is NOT evidence of its executing model.
+ * CARRIER REALITY — tool-contract facts, not steering. THIS COMMENT IS THE
+ * CANONICAL HOME of these facts — prose elsewhere (OPERATIONAL_RULES,
+ * Algorithm §Spend) carries one line + a pointer here, never a restatement.
+ * Freshness: `CarrierProbe.ts` re-probes end-to-end (dispatch → subagent
+ * transcript model read-back) and records to MEMORY/STATE/carrier-probe.json;
+ * /ic fails when the probe is stale (>30d) or contradicts DISPATCH_EXECUTES_FABLE.
+ *
+ * PROBED 2026-07-12 (CarrierProbe.ts first run + manual inheritance leg;
+ * evidence = subagent transcript assistant-message model, no fallback blocks).
+ * This FLIPPED the 2026-07-07/-11 facts — a harness update fixed dispatch:
+ *   - Agent dispatches now execute their model FAITHFULLY: explicit
+ *     `model: fable` executed claude-fable-5, and bare inheritance from a
+ *     Fable main loop executed claude-fable-5. The old downgrade-to-Opus
+ *     behavior is GONE. (History: 07-07/-11 probes showed both paths running
+ *     claude-opus-4-8 with a `fallback` block; see git history of this file.)
+ *   - Genuine Fable carriers are therefore: the main loop, `Inference.ts
+ *     --level max`, AND Agent dispatch. A subagent's self-report is still
+ *     NOT evidence — the transcript is.
  *   - VERIFICATION (integrity linchpin): Inference.ts reads the executed
  *     model back from the JSON envelope's modelUsage (verifyExecutedModel —
  *     filters the background haiku pass, takes the highest-output model as
@@ -81,6 +87,13 @@ export type EffortLevel = "max" | "high" | "medium" | "low";
  *     model-verification.jsonl. The system reports what RAN, never what it
  *     requested.
  */
+
+/** Machine-readable carrier fact: do Agent dispatches execute Fable when asked
+ * (explicitly or via inheritance)? CarrierProbe.ts verdicts compare live
+ * observation against THIS value; the statusline maps fable-labeled and
+ * fable-inherited dispatches to the FABLE rung only when true. Flip ONLY on
+ * transcript evidence from a probe run. Last probe: 2026-07-12 (true). */
+export const DISPATCH_EXECUTES_FABLE = true;
 export const EFFORT_MODEL: Record<EffortLevel, ClaudeTier> = {
   max: "fable",   // top rung (~2× Opus)
   high: "opus",
@@ -155,6 +168,7 @@ export const ALIAS: Record<ClaudeTier, string> = {
 export const CROSS_VENDOR: Record<string, string> = {
   forge: "gpt-5.6-sol",  // OpenAI (Tier-2 egress); covers build + audit modes
   codexResearcher: "gpt-5.6-sol",  // OpenAI (Tier-2 egress)
+  grokResearcher: "grok-4.5",  // xAI (Tier-2 egress); engine behind Grok.ts — keep in sync with its --model default
   gene: "z-ai/glm-5.2",  // OpenRouter broker (Tier-2, most opaque); GLM 5.2 via OpenRouter.ts; default-pinned US+ZDR (Fireworks) => INTERNAL ceiling, unpinned => PUBLIC
 };
 
