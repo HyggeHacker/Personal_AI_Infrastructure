@@ -51,7 +51,7 @@ LifeOS targets **AS3** on the [LifeOS Maturity Model](https://example.com/blog/p
 
 **Canonical thesis:** `LIFEOS/DOCUMENTATION/LifeOs/LifeOsThesis.md` — read this first when any framing question comes up. This architecture doc describes *how* the OS is built; the thesis doc describes *what* the OS is for.
 
-**Version:** LifeOS 7.0.0 | Algorithm v8.4.0 | Memory v8.2.0
+**Version:** LifeOS 7.1.1 | Algorithm v8.4.0 | Memory v8.2.0
 
 ---
 

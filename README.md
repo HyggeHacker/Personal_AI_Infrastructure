@@ -24,7 +24,7 @@
 
 <!-- Content -->
 [![Get Started](https://img.shields.io/badge/🚀_Get_Started-Install-22C55E?style=flat)](#install)
-[![Release](https://img.shields.io/badge/Release-v7.0.0-8B5CF6?style=flat)](https://github.com/danielmiessler/LifeOS/releases)
+[![Release](https://img.shields.io/badge/Release-v7.1.1-8B5CF6?style=flat)](https://github.com/danielmiessler/LifeOS/releases)
 [![Algorithm](https://img.shields.io/badge/Algorithm-v8.3.0-D97706?style=flat)](https://github.com/danielmiessler/LifeOS/releases)
 [![Pulse](https://img.shields.io/badge/Pulse-included-3B82F6?style=flat)](https://ourlifeos.ai)
 [![Contributors](https://img.shields.io/github/contributors/danielmiessler/LifeOS?style=flat&logo=githubsponsors&logoColor=white&label=Contributors&color=EC4899)](https://github.com/danielmiessler/LifeOS/graphs/contributors)
