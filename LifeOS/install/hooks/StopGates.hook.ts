@@ -25,7 +25,6 @@
  */
 
 import { readHookInput } from "./lib/hook-io";
-import { run as formatGate } from "./FormatGate.hook";
 import { run as verificationGate } from "./VerificationGate.hook";
 import { run as writingGate } from "./WritingGate.hook";
 
@@ -38,7 +37,6 @@ type GateFn = (input: any) => Promise<object | null>;
 // stays DriftReminder's job; this gate is structure only. First in order so a
 // format fix is the recovery turn's single clear instruction.
 const GATES: Array<[string, GateFn]> = [
-  ["FormatGate", formatGate],
   ["VerificationGate", verificationGate],
   ["WritingGate", writingGate],
 ];
