@@ -1591,6 +1591,15 @@ _model_display=$(printf '%s' "$_model_display" | tr '[:lower:]' '[:upper:]')
 printf "${SLATE_400}HARN:${RESET} ${LIFEOS_A}${_har_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}DEF MODEL:${RESET} ${LIFEOS_A}${_model_display}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}LIFEOS:${RESET} ${LIFEOS_A}${LIFEOS_VERSION}${RESET} ${SLATE_600}│${RESET} ${SLATE_400}ALGO:${RESET} ${LIFEOS_A}${ALGO_VERSION}${RESET}\n"
 fi
 
+# ── DOCTOR — delta-only capability line (upstream #1461 v2, cherry-picked 2026-07-15).
+# Renders ONLY when a capability newly regressed since the last Doctor.ts ack;
+# healthy = silent. Content precomputed by LIFEOS/TOOLS/Doctor.ts into a sidecar;
+# %s (not %b) on the content so a tampered sidecar can't inject terminal escapes.
+_doctor_sidecar="$LIFEOS_DIR/MEMORY/STATE/capabilities-statusline.txt"
+if [ "$MODE" = "normal" ] && [ -s "$_doctor_sidecar" ]; then
+    printf "%b%s%b\n" '\033[38;2;234;179;8m' "$(cat "$_doctor_sidecar")" "$RESET"
+fi
+
 # ── AGENTS roster: which model delegated agents run on under the current base
 # posture ("not only the default model, but the models the agents run on"). This
 # is the BASE posture; the ▸ LIVE line below corrects it for actual in-flight
@@ -1624,6 +1633,8 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
     _lbl_low=$(_em_lookup low);    _lbl_low="${_lbl_low:-HAIKU}"
     _lbl_forge=$(sed -n '/export const CROSS_VENDOR/,/^}/p' "$_pm_models_ts" 2>/dev/null | sed -n 's/^[[:space:]]*forge:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | tr '[:lower:]' '[:upper:]')
     _lbl_forge="${_lbl_forge:-GPT-5.6}"
+    _lbl_grok=$(sed -n '/export const CROSS_VENDOR/,/^}/p' "$_pm_models_ts" 2>/dev/null | sed -n 's/^[[:space:]]*grokResearcher:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | tr '[:lower:]' '[:upper:]')
+    _lbl_grok="${_lbl_grok:-GROK-4.5}"
 
     read -r _rs_max _rs_high _rs_med _rs_low _rs_forge \
         <<< "$(_pm_roster_states)"
@@ -1640,6 +1651,15 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
              | select((.subagent_type // "") | test("forge"; "i"))] | length
         ' "$_forge_starts" 2>/dev/null)
         [ "${_forge_live:-0}" -gt 0 ] 2>/dev/null && _rs_forge=2
+    fi
+    # Grok (xAI) — same cross-vendor treatment as Forge: dim unless a grok dispatch is in flight.
+    _rs_grok=0
+    if [ -f "$_forge_starts" ]; then
+        _grok_live=$(jq -r --argjson cutoff "$(( (NOW_EPOCH - 300) * 1000 ))" '
+            [to_entries[] | .value | select(.epoch > $cutoff)
+             | select((.subagent_type // "") | test("grok"; "i"))] | length
+        ' "$_forge_starts" 2>/dev/null)
+        [ "${_grok_live:-0}" -gt 0 ] 2>/dev/null && _rs_grok=2
     fi
     # Escalating rung ladder (principal directive 2026-07-06, corrected same day):
     # EVERY rung renders DIM unless it is the ACTIVE (primary-dispatch) rung.
@@ -1660,6 +1680,8 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
             max:*)    printf '\033[2;38;2;150;110;195m'  ;;  # dim: muted purple tint
             forge:2)  printf '\033[1;38;2;103;232;249m' ;;  # ACTIVE: bold cyan — cross-vendor
             forge:*)  printf '\033[2;38;2;85;160;175m'   ;;  # dim: muted cyan tint
+            grok:2)   printf '\033[1;38;2;226;232;240m' ;;  # ACTIVE: bold silver — xAI cross-vendor
+            grok:*)   printf '\033[2;38;2;125;135;148m'  ;;  # dim: muted gray tint
         esac
     }
     _ar_tok() {  # $1=state $2=rung $3=label
@@ -1676,6 +1698,7 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
     # dispatch is live (see _forge_live override above).
     _ar_line+=" ${SLATE_600}│${RESET} "
     _ar_line+="$(_ar_tok "$_rs_forge" forge "+$_lbl_forge")"
+    _ar_line+=" $(_ar_tok "$_rs_grok" grok "+$_lbl_grok")"
     printf "%b\n" "$_ar_line"
 fi
 
