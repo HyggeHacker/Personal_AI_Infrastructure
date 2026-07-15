@@ -982,6 +982,7 @@ USAGE_RESET='\033[38;2;148;163;184m'
 USAGE_EXTRA='\033[38;2;140;90;60m'
 USAGE_EXTRA_ACTIVE='\033[38;2;251;146;60m'   # Bright orange — extra credits burning NOW
 USAGE_STALE='\033[38;2;120;113;108m'   # Warm gray for stale labels (not values)
+FOUNDRY_BLUE='\033[38;2;0;120;212m'    # Azure blue — Foundry provider token on the USE line
 
 # Quote (gold)
 QUOTE_PRIMARY='\033[38;2;252;211;77m'
@@ -2067,7 +2068,13 @@ if _row_on use && [ "${usage_state:-absent}" != "absent" ]; then
     # readout IS the indicator), API (API-key billing). When extra usage is
     # enabled but NOT burning, the monthly credits balance still shows, dimmed,
     # after the SUB token.
-    if [ "${usage_no_data:-false}" = "true" ]; then
+    if [ "${CLAUDE_CODE_USE_FOUNDRY:-}" = "1" ]; then
+        # Foundry backend active — billing runs through Azure, so the Anthropic
+        # subscription token (SUB/EXT/API) is moot. Show the provider + resource
+        # instead, giving a SUB / EXT / API / FOUNDRY token on the USE line.
+        _foundry_resource="${ANTHROPIC_FOUNDRY_RESOURCE:-unknown}"
+        _billing_fmt="${FOUNDRY_BLUE}FOUNDRY${RESET} ${SLATE_600}│${RESET} ${SLATE_400}${_foundry_resource}${RESET}"
+    elif [ "${usage_no_data:-false}" = "true" ]; then
         _billing_fmt="${USAGE_PRIMARY}API${RESET}"
     elif [ "$_extra_active" = true ] && [ -n "$extra_display" ]; then
         _billing_fmt="${USAGE_EXTRA_ACTIVE}⚡${extra_display}${RESET}"
