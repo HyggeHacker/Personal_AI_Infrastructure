@@ -308,12 +308,19 @@ function checkWorkflows(): void {
 // rule, the statusline dispatch mapping, and Algorithm §Spend. It flipped
 // silently on a harness update once (2026-07-12); this gate keeps it probed.
 //
-// FORK DIVERGENCE — advisory, where upstream blocks. `--check` exits 1 on
-// NEVER-RUN as well as on STALE/FLIPPED, and establishing the fact costs a
-// real billed `claude` subprocess. Blocking would therefore fail /ic on every
-// fresh clone over a fact nobody has probed yet. Advisory keeps the signal
-// visible without gating unrelated integrity work behind a spend. Revisit if
-// we ever ship a probed state by default.
+// FORK DIVERGENCE — advisory, where upstream has `blocking: true`. RATIFIED BY
+// THE PRINCIPAL 2026-07-15: do NOT silently take upstream's value on a future
+// hand-port; changing it back is a decision, not a merge.
+//
+// Why: `--check` exits 1 on NEVER-RUN and on STALE (>30d), not just on the real
+// signal (FLIPPED). Blocking would redden /ic on every fresh clone until someone
+// runs the probe, then again every 31st day — and this fork has no consumer of
+// DISPATCH_EXECUTES_FABLE at all (our statusline tracks FABLE via /model, not
+// dispatch mapping; upstream's rewrite, which we declined, is the only reader).
+// Gating unrelated integrity checks on a fact nothing here reads buys nothing.
+// The probe itself is cheap (haiku driver) — cost was never the argument.
+//
+// Revisit trigger: if we ever adopt a consumer of the constant, flip to blocking.
 function checkCarrierProbe(): void {
   const findings: Finding[] = [];
   try {
