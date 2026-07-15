@@ -282,9 +282,14 @@ function cmdCheck(): void {
   }
 
   // Version drift check: the master doc shouldn't mention an older Algorithm version than ALGORITHM/
+  // Only ALGORITHM-QUALIFIED mentions count — "Algorithm v8.4.0" or "ALGORITHM/v8.4.0.md".
+  // A bare vX.Y.Z in this doc is a hook, Memory, or Bunker version (or a historical
+  // citation) and says nothing about Algorithm drift. Matching every semver made this
+  // gate unpassable: it reported v0.1.0, v1.3.0 and every v6.x in the doc as an "older
+  // Algorithm version", so --check exited 1 on a correct tree, permanently.
   const archContent = fs.readFileSync(ARCH_SOURCE, "utf-8");
   const current = detectAlgorithmVersion();
-  const cited = [...archContent.matchAll(/v(\d+\.\d+\.\d+)/g)].map(m => m[1]);
+  const cited = [...archContent.matchAll(/(?:Algorithm\s+v|(?:Algorithm|ALGORITHM)\/v)(\d+\.\d+\.\d+)/g)].map(m => m[1]);
   const stale = cited.filter(v => compareSemver(v, current) < 0);
   if (stale.length > 0) {
     console.log(`STALE: LifeosSystemArchitecture.md references older Algorithm version(s) ${[...new Set(stale)].join(", ")} — current is v${current}`);
