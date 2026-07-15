@@ -303,11 +303,34 @@ function checkWorkflows(): void {
   record('workflows', findings, `${wfFiles.length} workflow files, ${findings.length} orphaned`);
 }
 
+// ── Check: carrier-probe freshness (CarrierProbe --check, zero spend) ──
+// The DISPATCH_EXECUTES_FABLE fact in models.ts underpins the Fable-carrier
+// rule, the statusline dispatch mapping, and Algorithm §Spend. It flipped
+// silently on a harness update once (2026-07-12); this gate keeps it probed.
+//
+// FORK DIVERGENCE — advisory, where upstream blocks. `--check` exits 1 on
+// NEVER-RUN as well as on STALE/FLIPPED, and establishing the fact costs a
+// real billed `claude` subprocess. Blocking would therefore fail /ic on every
+// fresh clone over a fact nobody has probed yet. Advisory keeps the signal
+// visible without gating unrelated integrity work behind a spend. Revisit if
+// we ever ship a probed state by default.
+function checkCarrierProbe(): void {
+  const findings: Finding[] = [];
+  try {
+    execFileSync('bun', [join(CLAUDE_DIR, 'LIFEOS', 'TOOLS', 'CarrierProbe.ts'), '--check'], { encoding: 'utf8' });
+  } catch (e: any) {
+    const msg = (e.stderr || e.stdout || e.message || '').toString().trim().split('\n')[0];
+    findings.push({ detail: msg || 'CarrierProbe --check failed', blocking: false });
+  }
+  record('carrier-probe', findings, findings.length === 0 ? 'fact fresh' : undefined);
+}
+
 // ── Run all ──
 try {
   checkReferences();
   checkVersionAnchors();
   checkHookRegistration();
+  checkCarrierProbe();
   checkClaudeImports();
   checkSkills();
   checkWorkflows();
