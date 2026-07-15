@@ -1,15 +1,29 @@
 #!/usr/bin/env bun
 /**
- * @version 2.1.0
+ * @version 2.3.0
  * AlgorithmNudge — the Algorithm live nudge layer ("Events ask the rest").
  *
  * Unification (2026-07-11, principal-approved): IsaNudge's run-scoped nudges +
  * the skill-routing, late-ISA, and tier-free spend nudges from the dynamic-range
  * audit, in ONE runner. Formerly hooks/IsaNudge.hook.ts.
  *
+ * 2.2.0 (2026-07-12, principal-approved, RedTeam-verified design): always-on
+ * depth-directive row — a plain-language depth directive in a NO-RUN turn is a
+ * signal the turn is a run, and doctrine claims 10/15 only have teeth once the
+ * run exists. Advisory question only; a Stop-block variant was adversarially
+ * killed (Goodharts into token dispatches; gates on procedure, not outcome).
+ *
+ * 2.3.0 (2026-07-12, install-awareness redesign #1461): always-on capability
+ * row — PostToolUseFailure on a Bash command exercising a Doctor-tracked
+ * capability while capabilities.json marks it broken fires ONE line with a
+ * compile-time CAP_FIX command (60-min per-capability cooldown; manifest is
+ * state-only, never a prose source).
+ *
  * TWO SCOPES:
- *   ALWAYS-ON  (any session)          → skill-routing (UserPromptSubmit),
- *                                       late-ISA (PostToolUse, no registered run)
+ *   ALWAYS-ON  (any session)          → skill-routing + depth-directive
+ *                                       (UserPromptSubmit),
+ *                                       late-ISA (PostToolUse, no registered run),
+ *                                       capability row (PostToolUseFailure)
  *   RUN-SCOPED (live Algorithm run)   → probe-fail, principal, agent-return,
  *                                       claim-close, stale-isa, spend
  *
@@ -52,6 +66,19 @@ const ROUTING_LOG_CAP_BYTES = 512_000;     // telemetry stops appending past thi
 const ROUTE_MAX_MATCHES = 6;               // more matches than this = generic prompt = noise
 const ISA_PATH_RE = /(?:^|\/)(?:ISA\.md|bunker\.isa\.md)$/i;
 const ACTIVE_PHASES = new Set(['starting', 'observe', 'think', 'plan', 'build', 'execute', 'verify']);
+const CAPABILITIES_PATH = process.env.LIFEOS_CAPABILITIES_PATH
+  || join(PAI, 'LIFEOS', 'MEMORY', 'STATE', 'capabilities.json');
+const CAP_COOLDOWN_MS = 60 * 60 * 1000;    // per-capability; moment-of-need, never nagging
+
+// Doctor-manifest capabilities → the command shapes that exercise them.
+// Fed by LIFEOS/TOOLS/Doctor.ts (v2 design, #1461): broken fires once with the
+// fix command, declined and live are ALWAYS silent, absent manifest is silent.
+const CAP_COMMAND_RES: Array<{ id: string; re: RegExp }> = [
+  { id: 'codex', re: /\bcodex\b/ },
+  { id: 'cloudflare', re: /\bwrangler\b/ },
+  { id: 'voice', re: /localhost:31337\/notify/ },
+  { id: 'interceptor', re: /\binterceptor\b/ },
+];
 
 interface HookInput {
   session_id?: string;
@@ -112,6 +139,18 @@ function saveState(sessionId: string, state: NudgeState): void {
     mkdirSync(STATE_DIR, { recursive: true });
     writeFileSync(join(STATE_DIR, `${sessionId}.json`), JSON.stringify(state));
   } catch {}
+}
+
+/** True when ANY registered run — any phase, including complete — is bound to
+ *  this harness session. Late-ISA must distinguish "no run was ever written"
+ *  from "the run just closed": it fired seconds after a completion on
+ *  2026-07-12, live, during its own ship run. */
+function hasRegisteredRun(sessionId: string): boolean {
+  const reg = readJson<{ sessions?: Record<string, Record<string, unknown>> }>(WORK_JSON, {});
+  for (const s of Object.values(reg.sessions || {})) {
+    if ((s.sessionUUID as string) === sessionId) return true;
+  }
+  return false;
 }
 
 /** Find the ALGORITHM session bound to this harness session UUID, if it's mid-run. */
@@ -263,6 +302,73 @@ export function principalSuppressed(p: string): boolean {
   // "use Redis", "skip that", "/model opus" are mid-run revisions and MUST nudge
 }
 
+// ── Depth directive (always-on, no-run turns) ────────────────────────────────
+
+/** Plain-language depth directives. Deliberately narrow — misses fall through
+ *  to late-ISA and doctrine; fires are logged to routing telemetry for tuning.
+ *  A false positive costs one advisory line, so the guards below aim at pasted
+ *  content, not perfection. */
+const DEPTH_PHRASES = [
+  'think deeply', 'think hard', 'think harder', 'go deep', 'go heavy',
+  'be thorough', 'ultrathink', 'dig deep',
+];
+const DEPTH_HEAD_CHARS = 200;   // directives live at the top of a prompt; quoted
+                                // transcripts and pasted docs match deeper down
+const DEPTH_MAX_PROMPT = 1500;  // longer prompts are pasted content, not directives
+
+/** Depth gets its own suppression: only command/tag prefixes. routeSuppressed's
+ *  15-char floor would eat bare directives ("go deep", "ultrathink") — and a bare
+ *  directive is the most common form of the steering this row exists to catch
+ *  (post-ship audit 2026-07-12). The phrase match itself is the content floor. */
+export function depthSuppressed(p: string): boolean {
+  return /^[</]/.test(p);
+}
+
+/** Returns the matched phrase or null. Pure; exported for tests. */
+export function matchDepthDirective(prompt: string): string | null {
+  if (prompt.length > DEPTH_MAX_PROMPT || prompt.includes('```')) return null;
+  const head = prompt.slice(0, DEPTH_HEAD_CHARS).toLowerCase();
+  for (const phrase of DEPTH_PHRASES) {
+    if (new RegExp(`\\b${phrase}\\b`).test(head)) return phrase;
+  }
+  return null;
+}
+
+interface CapManifest {
+  capabilities: Record<string, { state?: string }>;
+}
+
+// Static fix commands, keyed by capability id — MIRRORS the CAPS registry in
+// LIFEOS/TOOLS/Doctor.ts (like the Pulse module's CAP_TITLES mirror). Sourced
+// here as compile-time constants so the nudge NEVER pulls a runnable command
+// string out of the on-disk manifest. Forge audit 2026-07-12: the manifest is
+// a file, this text lands in the model's context, so a poisoned manifest must
+// be able to flip a *state* at most — never inject prose the model might run.
+const CAP_FIX: Record<string, string> = {
+  codex: 'bun install -g @openai/codex && codex login',
+  cloudflare: 'add CLOUDFLARE_API_TOKEN to <configRoot>/.env, then: bun LIFEOS/TOOLS/Doctor.ts --network',
+  voice: 'set ELEVENLABS_VOICE_ID to an API-permitted voice in <configRoot>/.env',
+  interceptor: 'install Google Chrome (or Brave), then re-run: bun LIFEOS/TOOLS/Doctor.ts',
+};
+
+/** Pure: which capability nudge (if any) does this failed command earn?
+ *  broken → one line with the STATIC fix; declined/live/stale/absent → null.
+ *  Reads ONLY `state` from the manifest — no manifest string reaches the model. */
+export function capabilityNudgeFor(command: string, manifest: CapManifest): { id: string; text: string } | null {
+  if (!command) return null;
+  for (const { id, re } of CAP_COMMAND_RES) {
+    if (!re.test(command)) continue;
+    const entry = manifest.capabilities?.[id];
+    if (!entry || entry.state !== 'broken') return null;
+    const fix = CAP_FIX[id] ? ` Fix: ${CAP_FIX[id]}` : '';
+    return {
+      id,
+      text: `That failure touched the "${id}" capability, which Doctor has as BROKEN.${fix} Or opt out for good: bun LIFEOS/TOOLS/Doctor.ts decline ${id}.`,
+    };
+  }
+  return null;
+}
+
 export function run(input: HookInput): string | null {
   try {
     const sessionId = input.session_id || '';
@@ -295,6 +401,17 @@ export function run(input: HookInput): string | null {
         }
       }
 
+      // ALWAYS-ON: depth directive with no registered run. Doctrine claims 10/15
+      // (ask-fidelity, spend) only have teeth inside a run — this row's whole job
+      // is getting the run to exist. Mid-run, the principal nudge below covers it.
+      if (!active && !depthSuppressed(p) && cooled(state, 'depth', now)) {
+        const phrase = matchDepthDirective(p);
+        if (phrase) {
+          logRoutingFire(sessionId, p, [{ skill: 'DEPTH', phrase }]);
+          fire(state, 'depth', now, `He directed depth ("${phrase}"). His call outranks your judgment (claim 15): likely a run, not a chat turn — write done down, and name what the task earns (thinking skills, agents, research, verification) or state why inline is enough.`, out);
+        }
+      }
+
       // RUN-SCOPED: principal mid-run message (its OWN gate — looser by design;
       // short revisions like "use Redis" must nudge).
       if (active && !principalSuppressed(p) && cooled(state, 'principal', now)) {
@@ -315,6 +432,17 @@ export function run(input: HookInput): string | null {
       // are usually iteration noise, not claim falsifications (Forge audit).
       if ((active.phase === 'execute' || active.phase === 'verify') && cooled(state, 'probe-fail', now)) {
         fire(state, 'probe-fail', now, 'That failure — was it a claim probe? If so: claim wrong or code wrong? A wrong claim means update the ISA; that is the climb.', out);
+      }
+    }
+
+    // ALWAYS-ON: capability moment-of-need. A failed command that exercises a
+    // Doctor-tracked capability, while the manifest says BROKEN, gets ONE line
+    // with the fix command — at the exact moment the user paid for the gap.
+    if (event === 'PostToolUseFailure' && input.tool_name === 'Bash') {
+      const cmd = String((input.tool_input as Record<string, unknown>)?.command || '');
+      const capNudge = capabilityNudgeFor(cmd, readJson<CapManifest>(CAPABILITIES_PATH, { capabilities: {} }));
+      if (capNudge && cooled(state, `capability:${capNudge.id}`, now, CAP_COOLDOWN_MS)) {
+        fire(state, `capability:${capNudge.id}`, now, capNudge.text, out);
       }
     }
 
@@ -359,7 +487,7 @@ export function run(input: HookInput): string | null {
           && cooled(state, 'spend', now, SPEND_COOLDOWN_MS)) {
           fire(state, 'spend', now, `~${state.toolCallsTotal} tool calls in with claims still open. Spend check: is the remaining work worth the remaining spend — escalate, descope, or surface? His explicit call outranks.`, out);
         }
-      } else if (!state.lateIsaFired && state.toolCallsTotal >= LATE_ISA_THRESHOLD) {
+      } else if (!state.lateIsaFired && state.toolCallsTotal >= LATE_ISA_THRESHOLD && !hasRegisteredRun(sessionId)) {
         // ALWAYS-ON: late-ISA. A session this deep with no registered run is
         // either genuinely trivial-iterative or an unwritten climb
         // (dynamic-range audit: 2h of substantive work before the ISA appeared).
