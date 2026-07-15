@@ -7,6 +7,7 @@ import { Webhook, ArrowLeft, FileCode, Globe } from "lucide-react";
 import Link from "next/link";
 import EmptyStateGuide from "@/components/EmptyStateGuide";
 import { PageShell, PageHeader, Panel, StatTile, Pill } from "@/components/ui/chrome";
+import SystemHealthPanel from "@/components/SystemHealthPanel";
 
 interface HookEntry {
   event: string;
@@ -92,6 +93,8 @@ function HooksLanding({ hooks, events }: { hooks: HookEntry[]; events: string[] 
         <StatTile label="Hooks" value={hooks.length} icon={Webhook} dim="money" />
         <StatTile label="Events" value={events.length} icon={FileCode} dim="freedom" />
       </div>
+
+      <SystemHealthPanel />
 
       <div className="flex flex-col gap-6">
         {sortedEvents.map((event) => {

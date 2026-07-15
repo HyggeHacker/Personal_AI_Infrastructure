@@ -97,6 +97,7 @@ let assetsModule: any = null
 let usageModule: any = null
 let bunkerModule: any = null
 let contentModule: any = null
+let doctorModule: any = null
 
 async function loadModules(config: PulseConfig) {
   if (config.voice?.enabled !== false) {
@@ -268,6 +269,14 @@ async function loadModules(config: PulseConfig) {
     } catch (err) {
       log("warn", "Bunker module not available", { error: String(err) })
     }
+  }
+  // Doctor — read-only System Health surface over the advisory capability
+  // manifest + heartbeat written by LIFEOS/TOOLS/Doctor.ts (always loaded).
+  try {
+    doctorModule = await import("./modules/doctor")
+    if (doctorModule.start) await doctorModule.start()
+  } catch (err) {
+    log("warn", "Doctor module not available", { error: String(err) })
   }
 }
 
@@ -797,6 +806,12 @@ async function main() {
       // Usage API: /api/usage/*
       if (usageModule && pathname.startsWith("/api/usage")) {
         const resp = await usageModule.handleRequest(req, pathname)
+        if (resp) return resp
+      }
+
+      // Doctor API: /api/doctor (System Health — capabilities, heartbeat, hook reconcile)
+      if (doctorModule && pathname.startsWith("/api/doctor")) {
+        const resp = await doctorModule.handleRequest(req, pathname)
         if (resp) return resp
       }
 
