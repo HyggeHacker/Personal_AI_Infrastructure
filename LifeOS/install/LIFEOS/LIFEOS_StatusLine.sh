@@ -1702,7 +1702,17 @@ sep
 # PWD — current working directory (restored 2026-07-15; existed in v6, lost in the
 # v7 rebuild; upstream never shipped it — it shows only the git branch). Toggle via /statusline.
 if [ "$MODE" = "normal" ] && _row_on pwd; then
-    printf "${SLATE_400}◈ PWD:${RESET} ${LIFEOS_A}${dir_name}${RESET}\\n"
+    # project name (bright) + parent location (dim, home-relative) + git branch + ahead/behind sync
+    _pwd_parent=$(dirname "$current_dir" 2>/dev/null)
+    case "$_pwd_parent" in "$HOME") _pwd_parent="~";; "$HOME"/*) _pwd_parent="~${_pwd_parent#$HOME}";; esac
+    _pwd="${SLATE_400}◈ PWD:${RESET} ${LIFEOS_A}${dir_name}${RESET}  ${SLATE_600}${_pwd_parent}${RESET}"
+    if [ "${is_git_repo:-false}" = "true" ]; then
+        _pwd="${_pwd}  ${GIT_PRIMARY}⎇${RESET} ${GIT_VALUE}${branch:-—}${RESET}"
+        [ "${ahead:-0}" -gt 0 ] 2>/dev/null && _pwd="${_pwd} ${GIT_VALUE}↑${ahead}${RESET}"
+        [ "${behind:-0}" -gt 0 ] 2>/dev/null && _pwd="${_pwd}${GIT_VALUE}↓${behind}${RESET}"
+    fi
+    printf "%b
+" "$_pwd"
 fi
 
 # Context display — show percentage and bar (no token counts)
