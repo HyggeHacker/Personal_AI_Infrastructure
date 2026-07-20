@@ -4,6 +4,7 @@ last_updated_by: kai
 convention: pai-freshness-v1
 last_reviewed: 2026-05-08T01:30:00.000Z
 last_reviewed_by: <principal>
+version: 1.0.24
 ---
 
 # LifeOS Testing Doctrine

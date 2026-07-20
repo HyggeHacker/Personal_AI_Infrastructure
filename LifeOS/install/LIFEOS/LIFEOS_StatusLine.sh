@@ -837,6 +837,28 @@ if [ "$MODE" = "normal" ]; then
         fi
     }
 
+    # Emit fields that exist ONLY in the OAuth payload — never in Claude Code's
+    # native rate_limits (verified against real stdin 2026-07-12): the limits[]
+    # array (scoped per-model window e.g. Fable, plus per-window is_active
+    # flags) and the spend object (usage-credits pool, incl. disabled state).
+    # Appended after the base usage.sh so these lines win when sourced.
+    _emit_cache_enrichment() {
+        [ -f "$USAGE_CACHE" ] || return 0
+        jq -r '
+            ([.limits[]? | select(.scope.model? != null)] | first) as $sc |
+            "usage_scoped_present=" + (($sc != null) | tostring) + "\n" +
+            "usage_scoped_name=" + (($sc.scope.model.display_name // "") | ascii_upcase | @sh) + "\n" +
+            "usage_scoped_pct=" + ($sc.percent // 0 | tostring) + "\n" +
+            "usage_scoped_reset=" + ($sc.resets_at // "" | @sh) + "\n" +
+            "usage_scoped_active=" + ($sc.is_active // false | tostring) + "\n" +
+            "usage_5h_active=" + (([.limits[]? | select(.kind == "session") | .is_active] | first // false) | tostring) + "\n" +
+            "usage_7d_active=" + (([.limits[]? | select(.kind == "weekly_all") | .is_active] | first // false) | tostring) + "\n" +
+            "usage_spend_used_cents=" + (.spend.used.amount_minor // 0 | tostring) + "\n" +
+            "usage_spend_limit_cents=" + (.spend.limit.amount_minor // 0 | tostring) + "\n" +
+            "usage_spend_enabled=" + (.spend.enabled // false | tostring)
+        ' "$USAGE_CACHE" 2>/dev/null
+    }
+
     if [ "$has_native_rate_limits" = "true" ]; then
         # Native rate_limits available — use directly, skip OAuth API entirely.
         # Presence is tri-state and per-source (P1): a present 0% is real data
@@ -861,19 +883,20 @@ usage_extra_limit=${native_usage_extra_limit:-0}
 usage_extra_used=${native_usage_extra_used:-0}
 usage_ws_cost_cents=0
 USAGEEOF
-        # Native payload has no extra_usage — enrich from the OAuth cache so the
-        # EXT indicator and E:$ credits readout can render. Appended lines win
-        # over the native false/0 defaults when usage.sh is sourced. Skipped if
-        # a future Claude Code version starts shipping extra_usage natively.
-        if [ "${native_usage_extra_enabled:-false}" != "true" ]; then
-            _refresh_usage_cache
-            if [ "$_data_age" -lt "$USAGE_HARD_EXPIRY" ] && jq -e '.extra_usage.is_enabled == true' "$USAGE_CACHE" >/dev/null 2>&1; then
+        # Native payload has no extra_usage, limits[], or spend — enrich from
+        # the OAuth cache so the EXT indicator, credits readout, scoped-model
+        # (Fable) window, and active-window flags can render. Appended lines
+        # win over the native false/0 defaults when usage.sh is sourced.
+        _refresh_usage_cache
+        if [ "$_data_age" -lt "$USAGE_HARD_EXPIRY" ]; then
+            if [ "${native_usage_extra_enabled:-false}" != "true" ] && jq -e '.extra_usage.is_enabled == true' "$USAGE_CACHE" >/dev/null 2>&1; then
                 jq -r '
                     "usage_extra_enabled=true\n" +
                     "usage_extra_limit=" + (.extra_usage.monthly_limit // 0 | tostring) + "\n" +
                     "usage_extra_used=" + (.extra_usage.used_credits // 0 | tostring)
                 ' "$USAGE_CACHE" >> "$_parallel_tmp/usage.sh" 2>/dev/null
             fi
+            _emit_cache_enrichment >> "$_parallel_tmp/usage.sh"
         fi
     else
         # Fallback: fetch from OAuth API (pre-v2.1.80 or non-Claude.ai auth)
@@ -900,6 +923,7 @@ USAGEEOF
                 "usage_ws_cost_cents=0"
             ' "$USAGE_CACHE" > "$_parallel_tmp/usage.sh" 2>/dev/null
             echo "usage_data_age=$_data_age" >> "$_parallel_tmp/usage.sh"
+            _emit_cache_enrichment >> "$_parallel_tmp/usage.sh"
         else
             echo -e "usage_source=oauth\nusage_state=absent\nusage_5h=0\nusage_7d=0\nusage_extra_enabled=false\nusage_ws_cost_cents=0\nusage_no_data=true" > "$_parallel_tmp/usage.sh"
         fi
@@ -2066,6 +2090,7 @@ if _row_on use && [ "${usage_state:-absent}" != "absent" ]; then
 
     # Extra usage display (Max plan overage credits — values in cents)
     extra_display=""
+    credits_off_display=""
     if [ "${usage_extra_enabled:-false}" = "true" ]; then
         extra_limit_dollars=$((${usage_extra_limit:-0} / 100))
         extra_used_dollars=$((${usage_extra_used%%.*} / 100))
@@ -2075,6 +2100,14 @@ if _row_on use && [ "${usage_state:-absent}" != "absent" ]; then
             extra_limit_fmt="\$${extra_limit_dollars}"
         fi
         extra_display="\$${extra_used_dollars:-0}/${extra_limit_fmt}"
+    elif [ "${usage_spend_enabled:-}" = "false" ]; then
+        # Credits pool exists but is switched OFF (e.g. out_of_credits) — show
+        # the dim balance so missing overflow coverage is visible at a glance.
+        _sp_used_c=${usage_spend_used_cents:-0}
+        _sp_limit_c=${usage_spend_limit_cents:-0}
+        _sp_used=$(( ${_sp_used_c%%.*} / 100 ))
+        _sp_limit=$(( ${_sp_limit_c%%.*} / 100 ))
+        [ "$_sp_limit" -gt 0 ] && credits_off_display="CR:\$${_sp_used}/\$${_sp_limit}·OFF"
     fi
 
     # Staleness indicator: dim labels/timestamps only, NEVER dim data values.
@@ -2122,6 +2155,42 @@ if _row_on use && [ "${usage_state:-absent}" != "absent" ]; then
     }
     _reset_5h_fmt=$(_fmt_reset "$reset_5h_day" "$reset_5h_time")
     _reset_7d_fmt=$(_fmt_reset "$reset_7d_day" "$reset_7d_time")
+
+    # Active-window highlight: brighten the label of whichever window is the
+    # currently binding constraint (limits[].is_active from the OAuth payload).
+    # Skipped when stale — a dimmed line must not carry a bright label.
+    _5h_label_color="$_reset_color"
+    _7d_label_color="$_reset_color"
+    if [ "$_usage_is_stale" != true ]; then
+        [ "${usage_5h_active:-false}" = "true" ] && _5h_label_color="$USAGE_PRIMARY"
+        [ "${usage_7d_active:-false}" = "true" ] && _7d_label_color="$USAGE_PRIMARY"
+    fi
+
+    # Scoped per-model weekly window (e.g. FABLE) from the OAuth limits[] array.
+    # Reset time is dropped when it matches WEEK's — same boundary, redundant.
+    scoped_fmt=""
+    if [ "${usage_scoped_present:-false}" = "true" ] && [ -n "${usage_scoped_name:-}" ]; then
+        usage_scoped_int=${usage_scoped_pct%%.*}
+        [ -z "$usage_scoped_int" ] && usage_scoped_int=0
+        # Abbreviate long model names for line width (FABLE → FB)
+        [ "$usage_scoped_name" = "FABLE" ] && usage_scoped_name="FB"
+        usage_scoped_color=$(get_usage_color "$usage_scoped_int")
+        _rsc_fmt=""
+        if [ -n "${usage_scoped_reset:-}" ]; then
+            _rsc_epoch=$(parse_iso_epoch "$usage_scoped_reset")
+            if [ "$_rsc_epoch" -gt 0 ] 2>/dev/null; then
+                _rsc_str=$(reset_time_str "$_rsc_epoch")
+                if [ "$_rsc_str" != "${_r7d_str:-}" ]; then
+                    _rsc_fmt=" ${_reset_color}↻${RESET}$(_fmt_reset "${_rsc_str%%@*}" "${_rsc_str#*@}")"
+                fi
+            fi
+        fi
+        _scoped_label_color="$_reset_color"
+        if [ "$_usage_is_stale" != true ] && [ "${usage_scoped_active:-false}" = "true" ]; then
+            _scoped_label_color="$USAGE_PRIMARY"
+        fi
+        scoped_fmt=" ${_scoped_label_color}${usage_scoped_name}${RESET} ${usage_scoped_color}${usage_scoped_int}%%${RESET}${_rsc_fmt}"
+    fi
     # Billing source indicator — colored = actively billing, slate-dim = inactive.
     # Three-way: SUB (subscription), EXT (Anthropic extra usage credits), API
     # (API-key billing). EXT segment renders only when extra usage is enabled
@@ -2155,8 +2224,10 @@ if _row_on use && [ "${usage_state:-absent}" != "absent" ]; then
     else
         _billing_fmt="${USAGE_PRIMARY}SUB${RESET}"
         [ -n "$extra_display" ] && _billing_fmt="${_billing_fmt} ${SLATE_600}│${RESET} ${USAGE_EXTRA}${extra_display}${RESET}"
+        # Credits pool exists but is switched OFF — surface the dim balance (ported from 7.1.1).
+        [ -n "$credits_off_display" ] && _billing_fmt="${_billing_fmt} ${SLATE_600}│${RESET} ${USAGE_EXTRA}${credits_off_display}${RESET}"
     fi
-    printf "${_label_color}USE:${RESET} ${_reset_color}5HR${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_5h_fmt} ${SLATE_600}│${RESET} ${_reset_color}WEEK${RESET} ${usage_7d_color}${usage_7d_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_7d_fmt} ${SLATE_600}│${RESET} ${_billing_fmt}"
+    printf "${_label_color}USE:${RESET} ${_5h_label_color}5HR${RESET} ${usage_5h_color}${usage_5h_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_5h_fmt} ${SLATE_600}│${RESET} ${_7d_label_color}WEEK${RESET} ${usage_7d_color}${usage_7d_int}%%${RESET} ${_reset_color}↻${RESET}${_reset_7d_fmt}${scoped_fmt} ${SLATE_600}│${RESET} ${_billing_fmt}"
     [ -n "$stale_suffix" ] && printf "${stale_suffix}"
     printf "\n"
     sep

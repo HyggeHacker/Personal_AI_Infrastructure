@@ -586,8 +586,11 @@ export function startVoice(config: VoiceConfig): void {
   // Load voice config from settings.json
   voiceConfig = loadVoiceConfigFromSettings()
 
-  // Resolve default voice ID: config override → settings.json → hardcoded fallback
-  defaultVoiceId = config.default_voice_id || voiceConfig.defaultVoiceId || "s3TPKV1kjDlVtZbl4Ksh"
+  // Resolve default voice ID: config override → settings.json → hardcoded fallback.
+  // The fallback must stay an ElevenLabs PREMADE voice ("Rachel") — it is the
+  // last resort on unconfigured fresh installs, and account-library or famous
+  // voices 401 there (famous_voice_not_permitted, LifeOS#1461 bug 5).
+  defaultVoiceId = config.default_voice_id || voiceConfig.defaultVoiceId || "21m00Tcm4TlvDq8ikWAM"
 
   initialized = true
   log("info", "Voice module: initialized", {

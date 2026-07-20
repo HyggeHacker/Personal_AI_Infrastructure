@@ -4,6 +4,7 @@ last_updated_by: kai
 last_reviewed: 2026-07-02
 last_reviewed_by: kai
 convention: pai-freshness-v1
+version: 1.6.17
 ---
 
 # The Pulse System
@@ -36,6 +37,7 @@ Each subsystem runs in its own crash-isolated loop within the single Pulse proce
 | **Worker** | GitHub Issues work polling for LifeOS Workers (optional) | `checks/github-work.ts` |
 | **Assistant** | Digital Assistant identity, heartbeat, scheduling, growth | `Assistant/module.ts` |
 | **UserIndex** | LifeOS USER/ indexer — parses frontmatter + collections into typed JSON; fs.watch live refresh; powers `/life` dashboard + Daemon publish feed | `modules/user-index.ts` |
+| **Doctor** | Read-only System Health surface (2026-07-12, #1461). Serves `GET /api/doctor` → `{ manifest, heartbeat, reconcile }` from the advisory caches written by `LIFEOS/TOOLS/Doctor.ts`; shells `Doctor.ts --reconcile` (30s cache). Holds zero truth of its own. Rendered by `SystemHealthPanel.tsx` on the **System → Hooks** page: capability states + fix commands, doctor heartbeat age (red past 7 days — a dead checker must be loud), and hook reconciliation. Diagnostic register, no scores. | `modules/doctor.ts` |
 
 ---
 

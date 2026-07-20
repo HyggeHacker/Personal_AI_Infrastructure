@@ -23,7 +23,7 @@ The Algorithm adds four kinds of thing to native model execution. It never scrip
 |---|---|---|
 | **Context** | What the model can't know | Identity/TELOS/projects @-imports, LoadContext learning injection, memory hot-layer, AlgorithmNudge event nudges |
 | **Artifacts** | What the model won't externalize | The ISA (`Isa/IsaFormat.md`), Decisions/Changelog trails, KNOWLEDGE, reflection records |
-| **Teeth** | What the model won't hold itself to | The done-claims (`ALGORITHM/LATEST`, currently v8.1.0 — 15 teeth-annotated claims), VerificationGate + WritingGate teeth (both via `hooks/StopGates.hook.ts`; the telemetry-only OutputFormatGate was removed 2026-07-11 with the mode-banner strip), Forge + Grok cross-vendor review, keep-class doctrine (`RULES/Philosophy.md` § Ideal-State Prompting) |
+| **Teeth** | What the model won't hold itself to | The done-claims (`ALGORITHM/LATEST`, currently v8.4.0 — 15 teeth-annotated claims), VerificationGate + WritingGate teeth (both via `hooks/StopGates.hook.ts`; the telemetry-only OutputFormatGate was removed 2026-07-11 with the mode-banner strip), Forge + Grok cross-vendor review, keep-class doctrine (`RULES/Philosophy.md` § Ideal-State Prompting) |
 | **Instruments** | What makes the work observable | Pulse (phase telemetry, work.json, SSE), voice announcements, observability JSONL streams, execution logs |
 
 Spend follows the work, discovered from the task and its evidence gates — never predicted by a classifier or rubric (TheRouter and the effort tiers were retired 2026-07-11). The principal steers in plain language ("go heavy", "quick pass"), which outranks the model's judgment; a literal `/e1`–`/e5` in a prompt reads as "go heavier than default."
@@ -40,7 +40,7 @@ Spend follows the work, discovered from the task and its evidence gates — neve
 | Pulse | The instruments | `DOCUMENTATION/Pulse/PulseSystem.md` |
 | Memory/Learning | The loop's persistence: reflections, signals, curation | `DOCUMENTATION/Memory/MemorySystem.md` |
 
-Mode selection (MINIMAL / NATIVE / ALGORITHM) is the model's judgment call per the system prompt's Mode Architecture — the trigger is whether the ideal state is pre-articulable, not complexity.
+There are no modes. A one-line answer and a week-long build are the same loop at different depths (the MINIMAL / NATIVE / ALGORITHM modes were retired 2026-07-11 into one adaptive format). How much to spend is the model's judgment call, discovered from the work — the trigger is what "done" requires, not a complexity label.
 
 ## Health doctrine
 

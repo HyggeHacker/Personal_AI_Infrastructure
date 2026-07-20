@@ -1151,6 +1151,14 @@ A belt-and-suspenders egress sanitizer (LIFEOS/PULSE/lib/strip-mode-scaffolding.
       // the session). Fresh sessions and idle-reset sessions have resumeFromSdk
       // undefined and get a clean start.
 
+      // Timeout: the controller is passed INTO the SDK so a hung stream is
+      // actually killed at sdkTimeoutMs. Before 2026-07-11 the signal was only
+      // checked at the top of the for-await loop — a stream that stopped
+      // yielding hung the handler indefinitely (observed: one query ran 2.87h,
+      // freezing the live "▊" partial in the chat the whole time).
+      const timeoutController = new AbortController()
+      sdkOptions.abortController = timeoutController
+
       const queryOpts: { prompt: string; resume?: string; options?: any } = {
         prompt,
         options: sdkOptions as any,
@@ -1165,8 +1173,8 @@ A belt-and-suspenders egress sanitizer (LIFEOS/PULSE/lib/strip-mode-scaffolding.
       let fullText = ""
       let messageId: number | null = null
       let lastEditTime = 0
+      let timedOut = false
 
-      const timeoutController = new AbortController()
       const timeout = setTimeout(() => timeoutController.abort(), sdkTimeoutMs)
 
       try {
@@ -1227,13 +1235,32 @@ A belt-and-suspenders egress sanitizer (LIFEOS/PULSE/lib/strip-mode-scaffolding.
             } catch { /* edit failures are non-critical */ }
           }
         }
+      } catch (streamErr) {
+        // Abort at sdkTimeoutMs surfaces here as an error from the stream.
+        // Partial text (if any streamed before the hang) is still in fullText
+        // and ships below — better a truncated answer than a frozen "▊".
+        if (timeoutController.signal.aborted) {
+          timedOut = true
+          log("error", "SDK query timed out — aborted", {
+            sdkTimeoutMs,
+            partialLength: fullText.length,
+          })
+        } else {
+          throw streamErr
+        }
       } finally {
         clearTimeout(timeout)
       }
 
+      if (timedOut && fullText) {
+        fullText += "\n\n(⏱ I hit my generation time limit — this reply is cut short. Ask again to continue.)"
+      }
+
       if (!fullText) {
-        fullText = "Sorry, I wasn't able to generate a response. Try again?"
-        log("error", "Empty response from SDK")
+        fullText = timedOut
+          ? "That one timed out on my side before I produced anything. Send it again?"
+          : "Sorry, I wasn't able to generate a response. Try again?"
+        log("error", "Empty response from SDK", { timedOut })
       }
 
       // Egress sanitizer. Strip any CLAUDE.md mode

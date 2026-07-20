@@ -6,21 +6,30 @@
  *
  * WHY (2026-07-11): the unified output format has a voice/layout nudge
  * (DriftReminder, UserPromptSubmit) but that fires one turn LATE and has no
- * teeth — a format fail ships, and {{PRINCIPAL_NAME}} reads it before anything flags. This
- * gate blocks at Stop and re-emits, for the small set of STRUCTURAL rules that
- * are deterministically checkable without an LLM:
+ * teeth. This gate CHECKS, at Stop, the STRUCTURAL rules that are
+ * deterministically verifiable without an LLM:
  *   1. Banner `════ LifeOS` is the first visible line.
  *   2. `🗣️` closer is the last visible line.
  *   3. When a <pai-memory-delta> arrived this turn, a `🧠 MEMORY:` line exists.
  *   4. No more than 2 em-dashes in prose (code/blockquote stripped).
  *
+ * OBSERVATION-ONLY (2026-07-12): this gate does NOT block. A Stop hook fires
+ * AFTER the message is on screen and cannot edit emitted text — its only
+ * enforcement move is decision:block, which forces a FULL re-emit of the whole
+ * response to add one banner line or drop one em-dash. That re-emit prints the
+ * response twice, which is the duplicated-output failure {{PRINCIPAL_NAME}} escalated on
+ * hard (blocked ~10× no-banner / ~14× em-dash in a single session before this
+ * change). A cosmetic format concern must never cost a doubled response. So the
+ * gate logs every violation to format-gate.jsonl (decision:"flag") and returns
+ * null. Format compliance reverts to model behavior + the DriftReminder nudge;
+ * the telemetry keeps drift visible so we can tune the nudge, not the teeth.
+ *
  * NON-GOALS: length, paragraph density, voice/vocabulary — not reliably
- * deterministic; those stay DriftReminder + judgment. This gate is additive
- * and never touches WritingGate/VerificationGate/security hooks.
+ * deterministic; those stay DriftReminder + judgment. Never touches
+ * WritingGate/VerificationGate/security hooks (those legitimately block).
  *
  * SAFETY: honors stop_hook_active (loop guard → continue). Fails OPEN on any
- * error or empty message. decision:block re-emits (user sees the corrected
- * response once). Hot-path, no network, no LLM.
+ * error or empty message. Never re-emits. Hot-path, no network, no LLM.
  *
  * TRIGGER: Stop. Register in USER/CONFIG/settings.user.json Stop array.
  */
@@ -108,10 +117,6 @@ function appendObs(rec: Record<string, unknown>): void {
   } catch { /* observability is best-effort */ }
 }
 
-function blockReason(v: FormatViolation): string {
-  return `LifeOS output-format violation (${v.code}): ${v.detail}. Re-emit the response in the one LifeOS format — ════ LifeOS banner as the first line, the 🧠 MEMORY line when a delta arrived, the 🗣️ closer as the last line, and at most 2 closed em-dashes in prose. Fix only the format; keep the content.`;
-}
-
 /**
  * Gate entrypoint — matches the StopGates GateFn contract (returns a decision
  * object or null). Fails OPEN on every path: returns null rather than throwing.
@@ -136,8 +141,9 @@ export async function run(
     const violation = checkFormat(message, { memoryDelta });
 
     if (violation) {
-      appendObs({ session_id: input.session_id, decision: "block", code: violation.code, detail: violation.detail });
-      return { decision: "block", reason: blockReason(violation) };
+      // Observation-only: log the drift, never re-emit (see header WHY 2026-07-12).
+      appendObs({ session_id: input.session_id, decision: "flag", code: violation.code, detail: violation.detail });
+      return null;
     }
 
     appendObs({ session_id: input.session_id, decision: "pass", memoryDelta });

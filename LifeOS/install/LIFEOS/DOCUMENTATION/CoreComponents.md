@@ -4,6 +4,7 @@ last_updated_by: kai
 last_reviewed: 2026-07-05
 last_reviewed_by: kai
 convention: pai-freshness-v1
+version: 1.0.4
 ---
 
 # LifeOS Core Components
@@ -46,7 +47,7 @@ Where you write down who you are and what you're trying to do: your mission, goa
 
 ### 5. The Algorithm
 
-The centerpiece. A seven-phase engine — Observe, Think, Plan, Build, Execute, Verify, Learn — that takes a vague request, turns it into a hard-to-vary spec, and climbs toward it with verified iteration. It scales its own effort to the work: a fast lane for simple asks, full depth for hard ones. This is where current-state-to-ideal-state actually happens.
+The centerpiece. The unified thinking system that takes a vague request, turns it into a hard-to-vary spec (the ISA), and climbs toward it with verified iteration, closing each claim only on real evidence. It scales its own effort to the work — a fast lane for simple asks, full depth for hard ones — discovered from the task rather than a fixed set of phases. This is where current-state-to-ideal-state actually happens.
 
 → `Algorithm/AlgorithmSystem.md`
 
@@ -68,25 +69,19 @@ Deterministic lifecycle interception. Hooks run at fixed points across a session
 
 → `Hooks/HookSystem.md`
 
-### 9. The Router System
-
-Every prompt gets classified and routed. The router decides how much effort a request deserves and which model should handle it, so a quick lookup stays cheap and fast while a hard design problem gets the full engine and the strongest model. You never pick a mode — it picks for you.
-
-→ `Router/RouterSystem.md`
-
-### 10. Pulse
+### 9. Pulse
 
 The Life Dashboard — the live surface onto the whole system. Pulse shows your current-to-ideal progress, what the system is working on right now, your memory and freshness state, and the health of every subsystem. It's how you *see* LifeOS run.
 
 → `Pulse/PulseSystem.md`
 
-### 11. Custom Spinner Verbs
+### 10. Custom Spinner Verbs
 
 The small touch that makes the system feel alive. While LifeOS works, the statusline shows a custom animated working-verb — your own vocabulary, colors, and animation — alongside rotating tips about the system. A distinctive, personal detail most tools never bother with.
 
 → `Spinner/SpinnerSystem.md`
 
-### 12. Custom Tooltips
+### 11. Custom Tooltips
 
 Context where you need it. The dashboard's tooltips and freshness indicators explain what each number, chart, and badge means the moment you hover — so the surface teaches itself instead of sending you to a manual.
 

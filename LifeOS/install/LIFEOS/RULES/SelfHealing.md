@@ -1,3 +1,7 @@
+---
+version: 1.0.0
+---
+
 # Self-Healing Infrastructure (on-demand)
 
 > Relocated verbatim from LIFEOS_SYSTEM_PROMPT.md on 2026-07-09 (7.0.0 BPE). Load when encoding a new rule/preference/learning and deciding where it lives.

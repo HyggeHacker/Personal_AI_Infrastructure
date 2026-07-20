@@ -1,9 +1,10 @@
 ---
-last_updated: 2026-07-11T00:00:00Z
+last_updated: 2026-07-12T00:00:00Z
 last_updated_by: kai
 convention: pai-freshness-v1
 last_reviewed: 2026-05-04T18:27:00.870Z
 last_reviewed_by: {{PRINCIPAL_NAME}}
+version: 1.9.48
 ---
 
 # What LifeOS is and Why it Exists
@@ -297,16 +298,22 @@ It used to turn a raw prompt into a posture: mode, effort tier, the stated goal,
 - **Location (surviving model routing):** `LIFEOS/TOOLS/models.ts`, `hooks/AgentInvocation.hook.ts`, `LIFEOS/TOOLS/Inference.ts`
 - **Full doc (history only):** `LIFEOS/DOCUMENTATION/Router/RouterSystem.md`
 
-### Ledger — the Versioning System
+### Versioning
 
-**The versioning authority — assigns the right version to every change and keeps every version number in LifeOS coherent.**
+**How every change gets the right version and every version number stays coherent.** This is a convention plus a set of tools, not a named subsystem — the "Ledger" name (assigned 2026-07-06) was retired 2026-07-12 and its standalone doc folded into this section, which is now the canonical reference.
 
-Classifies each change as Major, Feature, or Patch (`Major.Feature.Patch`, always three levels), bumps the OS umbrella version (`LIFEOS/VERSION`) plus every touched component line (Algorithm, ISA Format, Memory, each skill's `version:`, each hook's `@version`), records it in the update registry, and syncs + tags the private repos. Named + versioned + documented 2026-07-06, closing the same "does the work, never had a name" gap the Router had. Terminal step is `UpdateKaiRepo` (private sync + tag); cutting and publishing releases are the separate, more sensitive `CreateShadowRelease` and `CreateRelease` stages.
+Every live version identifier is exactly three levels, **`Major.Feature.Patch`** — the OS umbrella (`LIFEOS/VERSION`), the Algorithm, the system prompt, the ISA Format spec, Memory, every skill's `version:`, every hook's `@version`, and every living doc's `version:`. The middle number is **Feature**, not "minor." Gates: Major = human conversation before the bump; Feature = one-line confirm at ship time; Patch = auto-applies with a visible notice. Historical changelog entries stay as recorded — no back-filling. The standing rule lives in `OPERATIONAL_RULES.md` § Versioning.
 
-- **Version:** 1.0.0
-- **Status:** Active (named + documented 2026-07-06)
-- **Location:** `skills/_LIFEOS/Tools/{ClassifyChange,UpdateLifeosVersion,BumpAlgorithmVersion,BumpSystemPromptVersion,BumpHookVersions,BumpSkillVersions,CreateUpdate,UpdateKaiRepo}.ts`, `skills/_LIFEOS/Workflows/VersionBump.md`, `LIFEOS/VERSION`
-- **Full doc:** `LIFEOS/DOCUMENTATION/Ledger/LedgerSystem.md`
+Two granularities of the same fact: the **OS umbrella** rolls up every substantive change, while **component lines** (Algorithm, system prompt, skills, hooks, docs, ISA Format, Memory) bump independently and roll into it — which is why a single skill edit bumps both the skill's `version:` and `LIFEOS/VERSION`.
+
+**Living-doc versioning (added 2026-07-12)** — every living Markdown doc carries a frontmatter `version:`, spanning BOTH private repos. The single scope authority is `skills/_LIFEOS/Tools/DocVersionScope.ts`: system repo = `LIFEOS/DOCUMENTATION/**` + `LIFEOS/RULES/**`; user repo = all tracked `*.md`. Excluded: MEMORY/CACHE/Backups archives (back-stamping records is revisionism), generated derivatives (`generator:`/`derived_from:` — they inherit from their source), basename `CLAUDE.md` (the OS umbrella is its version), `CUSTOMIZATIONS/ARBOL/` (own repo), and everything already component-versioned. Baselines were seeded from real git lineage by `SeedDocVersions.ts` (creation → 1.0.0; non-migration commit → patch; commit adding a new `## ` section → feature; `git log --follow`, never combined with `--reverse` — they're silently incompatible). `BumpDocVersions.ts` applies the same new-H2-→-feature rubric deterministically at sync time (never auto-major), with a self-bump guard so a version-line-only diff never re-bumps; both the doc seeder and bumper run inside `UpdateKaiRepo --bump` exactly like skills and hooks.
+
+The flow per change: `ClassifyChange.ts` (diff → `patch | feature | major`; major always human-gated) → `UpdateLifeosVersion.ts` (bump the umbrella) → `Bump{Algorithm,SystemPrompt,Hook,Skill,Doc}Versions.ts` (roll the touched component lines — runs automatically inside `UpdateKaiRepo --bump`) → `CreateUpdate.ts` (append to the update registry) → `UpdateKaiRepo.ts --bump` (verified two-repo private sync + tag). Orchestrated by `skills/_LIFEOS/Workflows/VersionBump.md` (`/vb`); `rc` cuts a release candidate.
+
+Operation vocabulary, never conflated: **UpdateKaiRepo** = private sync + tag (versioning's terminal step, everyday sensitivity) · **CreateShadowRelease** = "cut" (stage + gates, no push) · **CreateRelease** = "publish" to the public repo (extremely sensitive, explicit go-ahead). "Cut" never means "publish"; private-sync ≠ cut ≠ publish.
+
+- **Status:** Active convention (subsystem name "Ledger" retired 2026-07-12; this section is the canonical doc)
+- **Location:** `skills/_LIFEOS/Tools/{ClassifyChange,UpdateLifeosVersion,BumpAlgorithmVersion,BumpSystemPromptVersion,BumpHookVersions,BumpSkillVersions,DocVersionScope,SeedDocVersions,BumpDocVersions,CreateUpdate,UpdateKaiRepo}.ts`, `skills/_LIFEOS/Workflows/VersionBump.md`, `LIFEOS/VERSION`
 
 ### Skill System
 

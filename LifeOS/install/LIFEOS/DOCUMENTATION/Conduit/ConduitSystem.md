@@ -2,6 +2,7 @@
 last_updated: 2026-07-04T00:00:00Z
 last_updated_by: kai
 convention: pai-freshness-v1
+version: 1.2.0
 ---
 
 # Conduit — LifeOS's Sensory Layer

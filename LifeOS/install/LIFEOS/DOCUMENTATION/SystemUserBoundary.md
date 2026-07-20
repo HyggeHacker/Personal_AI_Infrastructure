@@ -3,6 +3,7 @@ last_updated: 2026-06-13T00:00:00Z
 last_updated_by: LifeOS docs reframe wave (refs re-verified against live tree)
 convention: pai-freshness-v1
 applies_to: LifeOS v6.0.0+ (proposed)
+version: 1.1.4
 ---
 
 # System / User Boundary

@@ -34,7 +34,7 @@
  * - WRONG.md - Things I was wrong about
  */
 
-import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync } from 'fs';
+import { readFileSync, writeFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import { getPrincipal } from '../../../hooks/lib/identity';
 
@@ -132,6 +132,15 @@ async function main() {
     mkdirSync(BACKUPS_DIR, { recursive: true });
     copyFileSync(targetFile, backupPath);
     console.log(`✅ Backup created: ${backupFilename}`);
+    // Rolling window: keep the 3 newest backups per file. Git is the durable
+    // history; these only cover the gap before the next repo sync (79 stale
+    // backups accumulated by 2026-07-12 before this prune existed).
+    const prefix = filename.replace('.md', '-');
+    const stale = readdirSync(BACKUPS_DIR)
+      .filter((f) => f.startsWith(prefix) && f.endsWith('.md'))
+      .sort()
+      .slice(0, -3);
+    for (const f of stale) rmSync(join(BACKUPS_DIR, f));
   } catch (error) {
     console.error(`❌ Failed to create backup: ${error}`);
     process.exit(1);

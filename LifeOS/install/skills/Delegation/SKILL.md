@@ -9,7 +9,7 @@ effort: medium
 
 ## What It Does
 
-Parallelizes work across six patterns: built-in agents, worktree-isolated agents, background agents, custom agents via inline briefs, agent teams via TeamCreate, and parallel task dispatch. It also splits delegation into two weights — lightweight one-shot workers (haiku, capped turns) versus full agents that iterate with tools. The Algorithm auto-invokes it once work hits three or more independent workstreams.
+Parallelizes work across six patterns: built-in agents, worktree-isolated agents, background agents, custom agents via inline briefs, agent teams via TeamCreate, and parallel task dispatch. It also splits delegation into two weights — lightweight one-shot workers (capped turns) versus full agents that iterate with tools. The Algorithm auto-invokes it once work hits three or more independent workstreams.
 
 ## The Problem
 
@@ -177,10 +177,10 @@ Not all delegation needs a full agent. Match delegation weight to task complexit
 **For:** One-shot extraction, classification, summarization, simple Q&A against provided content.
 
 ```
-Task(subagent_type="general-purpose", model="haiku", max_turns=3, prompt="...")
+Task(subagent_type="general-purpose", max_turns=3, prompt="...")
 ```
 
-- Use `model="haiku"` for cost/speed efficiency
+- Model is a per-dispatch judgment call (`model` param; unspecified inherits the session model)
 - Set `max_turns=3` — if it can't finish in 3 turns, it needs full delegation
 - Provide all input inline in the prompt (no tool use expected)
 - Examples: "Classify this text as X/Y/Z", "Extract the 5 key points from this", "Summarize this in 2 sentences"
@@ -192,7 +192,7 @@ Task(subagent_type="general-purpose", model="haiku", max_turns=3, prompt="...")
 Task(subagent_type="general-purpose", prompt="...")  # or specialized agent type
 ```
 
-- Default model (sonnet/opus inherited from parent)
+- Unspecified model inherits the session model (harness behavior)
 - No max_turns restriction — agent iterates until done
 - Agent uses tools autonomously (Read, Grep, Bash, etc.)
 - Examples: "Research X and produce a report", "Refactor these 5 files", "Debug why test Y fails"

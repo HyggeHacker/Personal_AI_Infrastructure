@@ -75,7 +75,7 @@ function detectAlgorithmVersion(): string {
 }
 
 /** Detect the system prompt's component version from its frontmatter `version:` line —
- *  the marker BumpSystemPromptVersion.ts owns (Ledger's fourth component). Scoped to the
+ *  the marker BumpSystemPromptVersion.ts owns (a versioning component line). Scoped to the
  *  leading `---` block so a `version:` in the body can't match. */
 function detectSystemPromptVersion(): string {
   const spPath = path.join(LIFEOS_DIR, "LIFEOS_SYSTEM_PROMPT.md");

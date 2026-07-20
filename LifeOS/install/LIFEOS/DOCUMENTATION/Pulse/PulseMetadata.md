@@ -2,6 +2,7 @@
 last_updated: 2026-07-11
 last_updated_by: kai
 convention: pai-freshness-v1
+version: 1.0.22
 ---
 
 # Pulse Metadata Surface — Badges, Strips, Panels

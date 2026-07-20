@@ -1,3 +1,7 @@
+---
+version: 1.0.5
+---
+
 # AI Writing Patterns — Detection Reference
 
 Exhaustive reference of AI writing tells for auditing and rewriting content. Used by the `_WRITING` skill and referenced by writing workflows.

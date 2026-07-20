@@ -1,3 +1,7 @@
+---
+version: 1.0.0
+---
+
 # Verification Doctrine — Expanded (on-demand)
 
 > Relocated verbatim from LIFEOS_SYSTEM_PROMPT.md on 2026-07-09 (7.0.0 BPE). The constitutional core stays resident; this file holds the full incident-derived doctrine. Load when verifying web/UI output, when Interceptor is wedged, when a claim is about appearance, or when in doubt about what counts as evidence. The same mechanics are enforced in Algorithm doctrine Rule 1 + hooks/VerificationGate.hook.ts.

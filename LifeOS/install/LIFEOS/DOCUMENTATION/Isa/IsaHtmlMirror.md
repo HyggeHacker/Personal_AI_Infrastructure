@@ -2,6 +2,7 @@
 last_updated: 2026-05-13T22:35:00Z
 last_updated_by: kai
 convention: pai-freshness-v1
+version: 1.0.15
 ---
 
 # ISA HTML Mirror

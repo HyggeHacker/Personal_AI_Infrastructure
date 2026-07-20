@@ -1,3 +1,7 @@
+---
+version: 1.5.7
+---
+
 # The Observability System
 
 > You can't steer a Life OS you can't see (`LIFEOS/DOCUMENTATION/LifeOs/LifeOsThesis.md`). Observability is the raw sensory feed behind the Life Dashboard — every tool call, agent, and failure as inspectable events, so both the principal and the DA can verify the hill-climb is actually climbing.
@@ -221,7 +225,7 @@ All endpoints served by the Pulse daemon's observability module (`Observability/
 
 ## Session State Tracking
 
-Distinct from the event pipeline above, session state (active sessions, phase, progress, criteria, ratings) flows through a single canonical file. Both the Pulse dashboard and the ULAdmin `/agents` page read the same file so they never drift.
+Distinct from the event pipeline above, session state (active sessions, phase, progress, criteria, ratings) flows through a single canonical file. Both the Pulse dashboard and any external admin dashboard's agents page read the same file so they never drift.
 
 **Canonical source:** `$LIFEOS_DIR/MEMORY/STATE/work.json`
 
@@ -234,7 +238,7 @@ Writers (atomic read-modify-write via isa-utils.ts:writeRegistry)
 
 Readers (both use identical mapping)
 ├─ Pulse Observability          localhost:31337 → observability.ts handleAlgorithmApi
-└─ ULAdmin daemon               localhost:4000  → server/src/algorithm-watcher.ts
+└─ external admin daemon        localhost:4000  → server/src/algorithm-watcher.ts
 ```
 
 **Display lanes:**

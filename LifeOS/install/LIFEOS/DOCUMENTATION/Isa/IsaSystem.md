@@ -1,3 +1,7 @@
+---
+version: 1.0.20
+---
+
 # ISA System
 
 > The ISA is the LifeOS loop (`LifeOs/LifeOsThesis.md`) applied to one thing at a time. TELOS articulates the ideal state of a *life*; an ISA articulates the ideal state of a *task, project, or artifact* — same primitive, smaller aperture. Every ISC is one verifiable step of the same hill-climb the OS runs globally.

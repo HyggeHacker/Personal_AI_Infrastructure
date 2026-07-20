@@ -3,6 +3,7 @@ name: DelegationReference
 description: Comprehensive delegation and agent parallelization patterns. Reference material extracted from SKILL.md for on-demand loading.
 created: 2025-12-17
 extracted_from: SKILL.md lines 535-627
+version: 1.4.11
 ---
 
 # Delegation & Parallelization Reference

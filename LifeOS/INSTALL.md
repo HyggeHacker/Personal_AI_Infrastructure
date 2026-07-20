@@ -119,7 +119,7 @@ LifeOS installs in **two layers**, and you present them that way.
 | Component | What it adds | Default |
 |---|---|---|
 | **hooks** | skill routing, the memory loop, voice, per-turn context injection — most behavior needs these (this is step 6) | **recommended** |
-| **statusline** | the LifeOS status line in your prompt | optional |
+| **statusline** | the LifeOS status line in your prompt — set `preferences.temperatureUnit` in `settings.json` to match your human's locale (payload default is `celsius`; suggest `fahrenheit` for US locales/timezones) | optional |
 | **tooltips** | custom Claude Code spinner tips | optional |
 | **spinner verbs** | custom spinner verbs | optional |
 | **agents** | the named agent library | optional |
@@ -127,6 +127,22 @@ LifeOS installs in **two layers**, and you present them that way.
 | **worksweep / derivedsync** | background `launchd` jobs (work capture, derived-file sync) | optional |
 
 The `launchd` components (Pulse, worksweep, derivedsync) are macOS-only — skip them cleanly on Linux/Windows. Show your human this menu, take their picks, and deploy only those. The **Setup** workflow (step 9) drives the actual deployment of the chosen set and verifies each with real evidence (e.g. Pulse → `curl :31337/healthz` = 200). Everything ships in the payload; nothing activates without its matching yes.
+
+### 8.5 Capability check — probe what doctrine assumes (Doctor)
+
+LifeOS doctrine leans on a few **external tools** the core install does not ship: a cross-vendor audit CLI (`codex`), a real browser for web verification (Interceptor), Cloudflare/wrangler for scheduled cloud flows, ElevenLabs for voice. Nothing above installed them, and the features that depend on them must degrade *loudly*, not silently. After Core lands, run the doctor:
+
+```
+bun <configRoot>/LIFEOS/TOOLS/Doctor.ts
+```
+
+It prints one line per capability — live ✅, broken ❌ (each with its own copy-paste fix command), or off ⏸ — and writes an advisory manifest the runtime uses to flag degraded output. Then ask your human, per broken capability: **set it up now, later, or never?**
+
+- **Now** → run the fix command shown, re-run Doctor. With their permission, add `--network` to verify auth end-to-end — network probes only ever touch capabilities they have already configured.
+- **Later** → leave it. The runtime will surface it the moment a degraded capability is actually invoked, fix command included.
+- **Never** → `bun <configRoot>/LIFEOS/TOOLS/Doctor.ts decline <name>`. Declined is a clean, permanent, silent OFF — no warnings, no red marks, no nagging, ever. Declining is a legitimate way to run LifeOS, not a defect.
+
+Deeper walkthroughs per tool (what it's for, install, auth, verify it's live): `GETTING-STARTED.md`, shipped next to this file. Your human can re-run the doctor any time something feels off: `lifeos doctor` territory — it's the same command.
 
 ### 9. Run Setup, then Interview
 
@@ -142,6 +158,8 @@ Run the **Setup** workflow (`Workflows/Setup.md`) to finish integration and veri
 | **Claude Code — Windows** | ✅ (copy fallback where symlinks need admin) | ✅ full |
 | **Cursor / Cline / Codex / Gemini / other** | ✅ | ⚠️ context loads every session via `AGENTS.md`; workflows run on request; always-on hooks not wired yet (roadmap) |
 | **Chat-only assistants (no files / no commands)** | ❌ | ❌ — install stops at the capability gate |
+
+Full-doctrine features additionally depend on the external tools in step 8.5 (codex, browser, Cloudflare, ElevenLabs). Without one, the dependent feature runs degraded **and says so** — it never silently pretends. The Doctor table is the live source of truth for what's on.
 
 ## Rules you must follow
 

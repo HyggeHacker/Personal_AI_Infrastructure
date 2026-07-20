@@ -1,3 +1,7 @@
+---
+version: 1.0.0
+---
+
 # ISA Hierarchy & Cross-ISA Integration
 
 > On-demand reference. Single-ISA work is the leaf case and covers virtually all real tasks — 0 of 472 ISAs in the archive use `parent:`/`children:`/Bridge Criteria as of 2026-07-07. The hierarchy machinery below exists for genuinely large builds (a Tolkien-scale world, an enterprise product) and is loaded from here, not from the every-turn Algorithm doctrine. The Algorithm keeps a one-paragraph stub pointing here.
