@@ -1659,7 +1659,7 @@ if [ "$MODE" = "normal" ] && _row_on agents; then
     _lbl_forge="${_lbl_forge:-GPT-5.6}"
     _lbl_grok=$(sed -n '/export const CROSS_VENDOR/,/^}/p' "$_pm_models_ts" 2>/dev/null | sed -n 's/^[[:space:]]*grokResearcher:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | tr '[:lower:]' '[:upper:]')
     _lbl_grok="${_lbl_grok:-GROK-4.5}"
-    _lbl_gemini=$(sed -n '/export const CROSS_VENDOR/,/^}/p' "$_pm_models_ts" 2>/dev/null | sed -n 's/^[[:space:]]*geminiResearcher:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | sed 's#.*/##' | tr '[:lower:]' '[:upper:]')
+    _lbl_gemini=$(sed -n '/export const CROSS_VENDOR/,/^}/p' "$_pm_models_ts" 2>/dev/null | sed -n 's/^[[:space:]]*geminiResearcher:[[:space:]]*"\([^"]*\)".*/\1/p' | head -1 | sed 's#.*/##' | tr '[:lower:]' '[:upper:]' | sed 's/-PREVIEW$//')
     _lbl_gemini="${_lbl_gemini:-GEMINI}"
 
     read -r _rs_max _rs_high _rs_med _rs_low _rs_forge \

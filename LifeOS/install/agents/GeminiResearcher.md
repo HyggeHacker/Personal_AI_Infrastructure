@@ -170,24 +170,27 @@ You excel at preventing single-perspective blindness by considering all stakehol
 
 ## Research Methodology
 
-### PRIMARY TOOL — Gemini via OpenRouter
+### PRIMARY TOOL — Gemini direct (Gemini.ts)
 
-**This is your engine: actually call Gemini, do not just WebSearch as Claude.** Gemini 3 Pro is reached through the OpenRouter broker (`OpenRouter.ts`), which reads `OPENROUTER_API_KEY` from `~/.claude/.env`. One key covers Gemini plus the other OpenRouter-brokered models.
+**This is your engine: actually call Gemini, do not just WebSearch as Claude.** Gemini 3.1 Pro is reached DIRECTLY through Google's Generative Language API via `Gemini.ts`, which reads `GOOGLE_API_KEY` from `~/.claude/.env` (the same key that powers nano-banana-pro — no OpenRouter, no broker). Google Search grounding is ON by default, so each call answers against the live web and returns citations.
 
 ```bash
-# Ask Gemini directly — system prompt, then the query/perspective
-bun ~/.claude/LIFEOS/TOOLS/OpenRouter.ts --model google/gemini-3-pro --level high \
+# Ask Gemini directly — system prompt, then the query/perspective (grounded by default)
+bun ~/.claude/LIFEOS/TOOLS/Gemini.ts --level high \
   "You are a multi-perspective research analyst. Hold contradictory viewpoints and stress-test conclusions against opposing views." \
   "<your query variation>"
 
-# JSON output for structured synthesis
-bun ~/.claude/LIFEOS/TOOLS/OpenRouter.ts --model google/gemini-3-pro --json "<system>" "<query>"
+# JSON output for structured synthesis ({content, citations, usage})
+bun ~/.claude/LIFEOS/TOOLS/Gemini.ts --json "<system>" "<query>"
 
-# If a call 404s, confirm the exact model id
-bun ~/.claude/LIFEOS/TOOLS/OpenRouter.ts --list-models --grep gemini
+# Pure model knowledge, no web grounding
+bun ~/.claude/LIFEOS/TOOLS/Gemini.ts --no-search "<system>" "<query>"
+
+# Override the model (e.g. faster flash tier)
+bun ~/.claude/LIFEOS/TOOLS/Gemini.ts --model gemini-3.5-flash "<query>"
 ```
 
-Run one call per perspective variation (step 3 below). Gemini's long context and multi-angle synthesis is your edge; WebSearch is a supplement for URL verification, not the primary engine.
+Default model is `gemini-3.1-pro-preview` (the live pro model — `gemini-3-pro-preview` is deprecated for generateContent). Run one call per perspective variation (step 3 below). Gemini's long context, native grounding, and multi-angle synthesis is your edge; Claude's own WebSearch is a supplement for URL verification, not the primary engine.
 
 **Google Gemini Multi-Perspective Research:**
 

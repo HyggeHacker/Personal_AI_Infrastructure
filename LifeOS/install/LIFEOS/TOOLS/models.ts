@@ -169,7 +169,7 @@ export const CROSS_VENDOR: Record<string, string> = {
   forge: "gpt-5.6-sol",  // OpenAI (Tier-2 egress); covers build + audit modes
   codexResearcher: "gpt-5.6-sol",  // OpenAI (Tier-2 egress)
   grokResearcher: "grok-4.5",  // xAI (Tier-2 egress); engine behind Grok.ts — keep in sync with its --model default
-  geminiResearcher: "google/gemini-3-pro",  // Google Gemini via OpenRouter.ts (Tier-2 broker); one OPENROUTER_API_KEY covers this + gene. Verify exact id: bun OpenRouter.ts --list-models --grep gemini
+  geminiResearcher: "gemini-3.1-pro-preview",  // Google Gemini DIRECT via Gemini.ts (generativelanguage API); GOOGLE_API_KEY covers this + nano-banana-pro. gemini-3-pro-preview is deprecated for generateContent; 3.1-pro-preview is the live pro model.
   gene: "z-ai/glm-5.2",  // OpenRouter broker (Tier-2, most opaque); GLM 5.2 via OpenRouter.ts; default-pinned US+ZDR (Fireworks) => INTERNAL ceiling, unpinned => PUBLIC
 };
 
