@@ -73,3 +73,8 @@ credentials/
 .claude/pai_updates/
 .claude/pai_backups/
 .claude/.pai-sync-history
+
+# Private skill packs — client-adjacent pentest tooling.
+# This repo is PUBLIC; these must never be committed. Symlinked into
+# ~/.claude/skills/_* at runtime. (2026-07-28)
+Private-Packs/
