@@ -78,3 +78,8 @@ credentials/
 # This repo is PUBLIC; these must never be committed. Symlinked into
 # ~/.claude/skills/_* at runtime. (2026-07-28)
 Private-Packs/
+
+# Retired upstream release snapshots. The v7 rebuild dropped Releases/ from this
+# fork, but the directory still lingers on disk and upstream still ships it — so
+# an upstream merge would try to re-add ~10k files. (2026-08-17 divergence analysis)
+Releases/
