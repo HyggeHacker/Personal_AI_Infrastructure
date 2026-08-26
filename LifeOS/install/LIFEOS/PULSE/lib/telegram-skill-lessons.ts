@@ -4,7 +4,7 @@
  * telegram-skill-lessons — the surface + apply arm of the inward-arrow loop.
  *
  * Skill-lessons live in their OWN queue (`pending-skill-lessons.jsonl`), NOT the
- * identity-proposal queue, because the identity consumer (telegram-proposals.ts
+ * identity-proposal queue, because the identity consumer (memory-proposals.ts
  * loadProposalQueue → writeProposalQueue) filters to target_file+edit rows and
  * REWRITES the file from that filtered set, which would silently drop a foreign
  * skill-lesson row. This module is the isolated reader/surfacer/applier for that
@@ -14,8 +14,9 @@
  * The apply arm (`applySkillLesson`) implements the ImproveSkill "MERGE mode"
  * Gotchas contract deterministically: land one bullet in the skill's `## Gotchas`
  * section, stamped with provenance, skipping a near-duplicate. It writes SKILL.md
- * ONLY from the human approval path — the caller is the Telegram reply handler,
- * a human-gated actor. No hook or autonomous reviewer imports this. SKILL.md
+ * ONLY from the human approval path — the caller is the channel reply handler
+ * (lib/proposal-approvals.ts, surfaced over iMessage), a human-gated actor.
+ * No hook or autonomous reviewer imports this. SKILL.md
  * stays Tier D; this is the authorized apply actor, not the autonomous reviewer.
  */
 
@@ -23,36 +24,14 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeF
 import { homedir } from "node:os";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { PENDING_SKILL_LESSONS_PATH } from "../../TOOLS/MemoryTypes";
-// The identity reply grammar, inlined. This used to be re-exported from
-// ./telegram-proposals, but upstream v7.40.4 deleted the whole Telegram pipeline
-// (telegram-proposals, telegram-sessions, session-store, context-compression, and
-// the grammy dep) in favour of iMessage/Hermes/Conduit. The grammar itself is
-// channel-agnostic — `yes/no/edit #id` reads the same over any transport — so it
-// is kept here verbatim rather than lost with the transport. (2026-08-25)
-export type ProposalReply =
-  | { kind: "yes"; id: string }
-  | { kind: "no"; id: string }
-  | { kind: "edit"; id: string; editText: string }
-  | { kind: "list" }
-  | { kind: null };
-
-export function parseProposalReply(text: string): ProposalReply {
-  const trimmed = text.trim();
-  if (/^proposals?$/i.test(trimmed)) return { kind: "list" };
-  const m = trimmed.match(/^(yes|no|edit)\s*#?([\w-]+)(?:\s+(.+))?$/i);
-  if (!m) {
-    const m2 = trimmed.match(/^#([\w-]+)\s+(yes|no|edit)(?:\s+(.+))?$/i);
-    if (!m2) return { kind: null };
-    const kind = m2[2]!.toLowerCase() as "yes" | "no" | "edit";
-    const id = m2[1]!;
-    if (kind === "edit") return { kind, id, editText: (m2[3] ?? "").trim() };
-    return { kind, id };
-  }
-  const kind = m[1]!.toLowerCase() as "yes" | "no" | "edit";
-  const id = m[2]!;
-  if (kind === "edit") return { kind, id, editText: (m[3] ?? "").trim() };
-  return { kind, id };
-}
+// The identity reply grammar used to be re-exported from ./telegram-proposals,
+// which upstream v7.40.4 deleted with the rest of the Telegram pipeline. Its
+// successor lives in ./memory-proposals (formerly telegram-proposals), which
+// carries the separator-required fix from public issue #1844 — an inlined copy
+// here briefly reintroduced the zero-length-separator bug ("Non ..." parsing as
+// {kind:"no"}). Re-exported so existing importers keep their surface while one
+// grammar remains authoritative. (2026-08-25)
+export { parseProposalReply, type ProposalReply } from "./memory-proposals";
 
 const HOME = process.env.HOME ?? homedir();
 const CLAUDE_ROOT = pathResolve(HOME, ".claude");

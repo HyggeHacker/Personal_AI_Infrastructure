@@ -8,6 +8,11 @@
  *
  * Architecture: SQLite poll -> auth -> SDK session -> AppleScript reply
  *
+ * Also hosts the human-approval surface for memory proposals and skill-lessons
+ * (lib/proposal-approvals.ts): the poll timer drains pending rows to the
+ * principal, and `yes/no/edit #id` / `proposals` / `lessons` replies are
+ * resolved deterministically before the SDK ever sees them.
+ *
  * Exports:
  *   startIMessage(config)  — starts SQLite polling loop (runs forever, supervised by parent)
  *   stopIMessage()         — stops polling
@@ -29,6 +34,7 @@ import { join } from "path"
 import { appendFile, mkdir, rename } from "fs/promises"
 import { stripModeScaffolding, hasModeScaffolding } from "../lib/strip-mode-scaffolding"
 import { loadRemoteMcpServers, mcpStatusPromptLine } from "../lib/mcp-allowlist"
+import { drainPendingApprovals, handleApprovalReply } from "../lib/proposal-approvals"
 import { homedir } from "node:os";
 import { getDAName } from "../../../hooks/lib/identity";
 
@@ -46,6 +52,13 @@ export interface IMessageConfig {
   poll_interval_ms?: number
   max_turns?: number
   sdk_timeout_ms?: number
+  /**
+   * Where pending memory-proposal / skill-lesson approvals are delivered.
+   * Defaults to the first allowed handle. Approvals stay human-gated: this
+   * module only surfaces rows and routes explicit yes/no/edit replies — it
+   * never auto-applies.
+   */
+  approvals_handle?: string
 }
 
 // ── Health Status ──
@@ -59,6 +72,8 @@ export interface IMessageHealth {
   last_row_id: number
   allowed_handles: string[]
   poll_interval_ms: number
+  proposals_surfaced: number
+  approval_replies_handled: number
   last_error?: string
 }
 
@@ -85,6 +100,9 @@ let sdkTimeoutMs = 120_000
 let conversationStore: ConversationStore | null = null
 let cursorPath = ""
 let chatLogPath = ""
+let approvalsHandle = ""
+let proposalsSurfaced = 0
+let approvalRepliesHandled = 0
 
 // ── Logging ──
 
@@ -301,6 +319,31 @@ async function poll() {
         rowid: msg.rowid,
       })
 
+      // Approval surface: `yes/no/edit #id` / `proposals` / `lessons` resolve
+      // pending memory-proposals and skill-lessons deterministically — no SDK,
+      // no model — so they are intercepted BEFORE the sequential-processing
+      // gate and work even while a slow SDK turn is in flight. Everything else
+      // falls through to the normal SDK path. Human-gated by construction:
+      // only an explicit reply from an allowed handle can apply a row.
+      const approvalText = sanitize(msg.text)
+      if (approvalText) {
+        try {
+          const outcome = await handleApprovalReply(
+            approvalText,
+            (text) => sendMessage(msg.handle, text),
+            { channel: "imessage" },
+          )
+          if (outcome === "handled") {
+            approvalRepliesHandled++
+            log("info", "Handled approval reply", { handle: msg.handle })
+            continue
+          }
+        } catch (err) {
+          log("error", "Approval reply handling failed", { error: String(err) })
+          // fall through to the SDK path rather than dropping the message
+        }
+      }
+
       // Sequential processing
       if (processing) {
         await sendMessage(
@@ -345,6 +388,24 @@ async function poll() {
 
     // Persist cursor after processing batch
     await saveCursor()
+
+    // Drain pending approvals every poll cycle — timer-driven, NOT piggy-backed
+    // on inbound messages. The old Telegram drain fired only when the principal
+    // texted, so proposals enqueued into a quiet chat sat invisible; the poll
+    // timer removes that limitation. Idempotent and self-pacing: a surfaced row
+    // is marked `sent` and never re-sent, and at most one proposal plus one
+    // skill-lesson goes out per cycle, so a backlog trickles out one poll
+    // interval apart instead of flooding the thread.
+    if (approvalsHandle) {
+      const surfaced = await drainPendingApprovals(
+        (text) => sendMessage(approvalsHandle, text),
+        { channel: "imessage" },
+      )
+      if (surfaced > 0) {
+        proposalsSurfaced += surfaced
+        log("info", "Surfaced pending approvals", { count: surfaced })
+      }
+    }
   } catch (err) {
     lastError = String(err)
     log("error", "Poll cycle failed", { error: lastError })
@@ -373,6 +434,7 @@ export async function startIMessage(config: IMessageConfig): Promise<void> {
   pollIntervalMs = config.poll_interval_ms ?? 3000
   maxTurns = config.max_turns ?? 25
   sdkTimeoutMs = config.sdk_timeout_ms ?? 120_000
+  approvalsHandle = config.approvals_handle ?? config.allowed_handles?.[0] ?? ""
 
   if (allowedHandles.size === 0) {
     log("error", "No allowed handles configured — iMessage module not starting")
@@ -426,6 +488,8 @@ export async function startIMessage(config: IMessageConfig): Promise<void> {
   startedAt = Date.now()
   messagesReceived = 0
   messagesResponded = 0
+  proposalsSurfaced = 0
+  approvalRepliesHandled = 0
   lastSessionId = undefined
   lastError = undefined
   processing = false
@@ -493,6 +557,8 @@ export function imessageHealth(): IMessageHealth {
     last_row_id: lastRowId,
     allowed_handles: [...allowedHandles],
     poll_interval_ms: pollIntervalMs,
+    proposals_surfaced: proposalsSurfaced,
+    approval_replies_handled: approvalRepliesHandled,
     ...(lastError ? { last_error: lastError } : {}),
   }
 }

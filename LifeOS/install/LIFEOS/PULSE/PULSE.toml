@@ -66,6 +66,10 @@ enabled = true
 
 [imessage]
 enabled = false
+# allowed_handles = ["+15555550100"]   # who may talk to the DA over iMessage
+# approvals_handle = "+15555550100"    # where pending memory-proposal / skill-lesson
+#                                      # approvals are delivered (defaults to the
+#                                      # first allowed handle); replies: yes/no/edit #id
 
 [observability]
 enabled = true
