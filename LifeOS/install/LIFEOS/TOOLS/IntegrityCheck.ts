@@ -1223,8 +1223,9 @@ function checkReplayCorpus(): void {
 // TaskCreate, TaskStop, TaskOutput are current — "TeamCreate" is not a prefix collision).
 // `Task({` was added 2026-07-27: the existing `Task(subagent_type` token only
 // matched the single-line form, so 113 dispatches written as `Task({ subagent_type:`
-// or `Task({\n  subagent_type:` sat in live workflows (all six _OSINT lookups, four
-// Research workflows, AgentSystem.md itself) teaching a tool that no longer exists.
+// or `Task({\n  subagent_type:` sat in live workflows (all six lookups in one
+// private skill, four Research workflows, AgentSystem.md itself) teaching a tool
+// that no longer exists.
 // The `(?<![A-Za-z])` guard in the fix pass is the reason `createTask({` is not a
 // collision here — indexOf is substring-based, so the token must stay this specific.
 const RETIRED_TOKENS = ['TeamCreate', 'Task(subagent_type', 'Task({', 'max_turns', 'team_name='];

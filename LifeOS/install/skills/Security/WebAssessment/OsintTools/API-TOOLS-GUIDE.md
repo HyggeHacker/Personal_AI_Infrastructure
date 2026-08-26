@@ -146,7 +146,7 @@ nano ${PAI_DIR}/.env
 SHODAN_API_KEY=your_actual_shodan_api_key_here
 DEHASHED_API_KEY=your_actual_dehashed_api_key_here
 DEHASHED_EMAIL=your_dehashed_account_email@example.com
-OSINT_INDUSTRIES_API_KEY=your_actual_osint_industries_key_here
+OSINT_INDUSTRIES_API_KEY=your_actual_api_key_here
 ```
 
 **CRITICAL:** Ensure `${PAI_DIR}/.env` is in `.gitignore` and NEVER commit it to any repository.
