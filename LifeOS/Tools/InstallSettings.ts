@@ -20,8 +20,10 @@
  *   bun InstallSettings.ts [--config-root <dir>] [--skill-root <dir>] [--apply] [--allow-dev]
  */
 
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync } from "node:fs";
+import { atomicWriteText } from "./lib/atomic-write";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { detectDevTree } from "./InstallEngine";
 
 interface Args { configRoot: string; skillRoot: string; apply: boolean; allowDev: boolean; }
@@ -32,7 +34,7 @@ function parseArgs(): Args {
     const i = a.indexOf(flag);
     return i >= 0 && a[i + 1] && !a[i + 1].startsWith("--") ? a[i + 1] : undefined;
   };
-  const home = process.env.HOME || "";
+  const home = process.env.HOME || homedir(); // public issue #1729, @umair-a11y
   return {
     configRoot: get("--config-root") || process.env.CLAUDE_CONFIG_DIR || join(home, ".claude"),
     skillRoot: get("--skill-root") || join(import.meta.dir, ".."),
@@ -65,7 +67,7 @@ function expandEnvBlock(settings: Record<string, unknown>, home: string): number
 }
 
 const args = parseArgs();
-const home = process.env.HOME || "";
+const home = process.env.HOME || homedir(); // public issue #1729, @umair-a11y
 const templatePath = join(args.skillRoot, "install", "settings.system.json");
 const targetPath = join(args.configRoot, "settings.json");
 
@@ -86,7 +88,8 @@ const report: Record<string, unknown> = { ok: true, apply: args.apply, target: t
 if (!existsSync(targetPath)) {
   report.mode = "create";
   report.topLevelKeys = Object.keys(template).length;
-  if (args.apply) writeFileSync(targetPath, JSON.stringify(template, null, 2) + "\n");
+  // Atomic — never leave a half-written settings.json (public PR #1643, @elhoim)
+  if (args.apply) atomicWriteText(targetPath, JSON.stringify(template, null, 2) + "\n");
 } else {
   const current = JSON.parse(readFileSync(targetPath, "utf8")) as Record<string, unknown>;
   const addedKeys: string[] = [];
@@ -105,7 +108,7 @@ if (!existsSync(targetPath)) {
   report.addedEnv = addedEnv;
   if (args.apply && (addedKeys.length || addedEnv.length)) {
     copyFileSync(targetPath, targetPath + ".backup-" + new Date().toISOString().replace(/[:.]/g, "-"));
-    writeFileSync(targetPath, JSON.stringify(current, null, 2) + "\n");
+    atomicWriteText(targetPath, JSON.stringify(current, null, 2) + "\n");
   } else if (args.apply) {
     report.note = "nothing to add — no write, no backup";
   }

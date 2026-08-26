@@ -175,7 +175,7 @@ export interface KnowledgeItem {
 /**
  * Proposal subtype discriminator (P1 2026-05-25). Tells the reviewer which
  * identity-doctrine or curated-context file the proposal targets. Routing,
- * Telegram surfacing, and tier validation use this to enforce per-target rules.
+ * proposal surfacing, and tier validation use this to enforce per-target rules.
  *
  * Subtypes map to specific target files via PROPOSAL_KIND_TO_FILES below. The
  * `identity` kind is allowed-set (PRINCIPAL or DA); others are exact-match.
@@ -214,15 +214,71 @@ export const PROPOSAL_KIND_TO_FILES: Readonly<Record<ProposalTargetKind, readonl
 });
 
 /**
+ * Kinds whose destination file is @-imported by CLAUDE.md and therefore paid for
+ * on EVERY turn. Proposals for these pass the ProposalScope gate in
+ * MemorySystem.add() — a skill- or project-scoped rule is diverted to the
+ * Upgrades store instead of being appended to always-on context.
+ *
+ * `projects` is deliberately ABSENT despite PROJECTS.md being @-imported: a
+ * PROJECTS.md row's whole job is to name a project, so scope-gating it would
+ * divert exactly the proposals that belong there.
+ */
+export const ALWAYS_LOADED_KINDS: ReadonlySet<ProposalTargetKind> = Object.freeze(
+  new Set<ProposalTargetKind>(["identity", "operational-rule"]),
+) as ReadonlySet<ProposalTargetKind>;
+
+/**
+ * The reviewer emits target_file as free text and sometimes writes `~/…`
+ * instead of the expanded home path (2026-08-10 run failure: a valid DA_IDENTITY
+ * proposal was rejected for the tilde alone). Expand it before any allowlist
+ * comparison; the allowlist itself stays absolute.
+ */
+export function normalizeProposalTargetFile(targetFile: string): string {
+  if (targetFile === "~" || targetFile.startsWith("~/")) {
+    return pathJoin(homedir(), targetFile.slice(1));
+  }
+  return targetFile;
+}
+
+/**
  * Reverse lookup — derive a proposal kind from a target file path. Returns
  * 'identity' as the sane default for legacy proposals that only carry a
  * target_file (no target_kind), so the v8.1 wire format keeps working.
  */
 export function inferProposalKind(targetFile: string): ProposalTargetKind {
+  const normalized = normalizeProposalTargetFile(targetFile);
   for (const [kind, files] of Object.entries(PROPOSAL_KIND_TO_FILES) as [ProposalTargetKind, readonly string[]][]) {
-    if (files.includes(targetFile)) return kind;
+    if (files.includes(normalized)) return kind;
   }
   return "identity";
+}
+
+/**
+ * Pin a proposal's target_file to its kind's canonical file (public PR #1563,
+ * @anikinsasha).
+ *
+ * Most kinds map to exactly ONE file (PROPOSAL_KIND_TO_FILES), so the target is
+ * fully determined by the kind. The reviewer emits target_file as free text, and
+ * a hallucinated path (wrong casing, a dropped path segment) would otherwise be
+ * persisted and then silently mis-file or fail to apply. For a single-file kind
+ * we therefore ignore the supplied path and return the canonical one. For a
+ * multi-file kind (identity) we can't pin, so we return the supplied path iff it
+ * is one of the allowed files, else null (the caller rejects the proposal rather
+ * than storing an out-of-set path). An unknown kind returns the supplied path
+ * unchanged (the caller validates the kind separately).
+ */
+export function pinProposalTargetFile(kind: ProposalTargetKind, suppliedTargetFile: string): string | null {
+  const allowed = PROPOSAL_KIND_TO_FILES[kind];
+  // Default-deny for an unknown/unmapped kind (Max review 2026-08-10, INFO #1):
+  // PROPOSAL_KIND_TO_FILES is exhaustive over ProposalTargetKind and every entry
+  // is non-empty, so this branch is only reachable via a runtime string that
+  // isn't a real kind (e.g. a hand-written queue row). Passing its supplied path
+  // through unchanged would let such a row write anywhere; return null so the
+  // caller refuses, matching the multi-file branch's out-of-allowlist behavior.
+  if (!allowed || allowed.length === 0) return null;
+  if (allowed.length === 1) return allowed[0];
+  const normalized = normalizeProposalTargetFile(suppliedTargetFile);
+  return allowed.includes(normalized) ? normalized : null;
 }
 
 export function isKnownProposalKind(k: string): k is ProposalTargetKind {
@@ -235,7 +291,7 @@ export interface ProposalItem {
   /**
    * Subtype discriminator (P1 2026-05-25). Defaults to 'identity' when absent
    * for backwards compat. The reviewer is instructed to populate this so the
-   * Telegram surfacer renders the right label and the validator can enforce
+   * proposal surfacer renders the right label and the validator can enforce
    * (kind, file) consistency.
    */
   target_kind?: ProposalTargetKind;
@@ -357,7 +413,7 @@ const _REGISTRY: Record<MemoryTypeName, TypeRegistryEntry> = {
     load_timing: "surface-only",
     tier: "C",
     write_mode: "queue",
-    description: "Low-confidence identity-doctrine edit awaiting principal approval via Telegram.",
+    description: "Low-confidence identity-doctrine edit queued for principal approval.",
   },
   // ── LIFEOS-PRIVATE (skill-lesson) ── (fenced for trivial upstream rebase; see #1450)
   "skill-lesson": {
@@ -561,6 +617,25 @@ function smokeTest(): number {
   check("infer: CONTACTS → contacts",             inferProposalKind(CONTACTS_PATH) === "contacts");
   check("infer: unknown path defaults to identity (legacy compat)",
     inferProposalKind("/tmp/random.md") === "identity");
+  check("infer: tilde-prefixed DA_IDENTITY resolves (2026-08-10 reviewer failure shape)",
+    inferProposalKind("~/.claude/LIFEOS/USER/DIGITAL_ASSISTANT/DA_IDENTITY.md") === "identity");
+  check("pin: tilde-prefixed DA_IDENTITY pins to the absolute canonical path",
+    pinProposalTargetFile("identity", "~/.claude/LIFEOS/USER/DIGITAL_ASSISTANT/DA_IDENTITY.md") === DA_IDENTITY_PATH);
+  check("pin: out-of-set identity path still rejected after normalization",
+    pinProposalTargetFile("identity", "~/.claude/evil.md") === null);
+
+  // 14b. pinProposalTargetFile — single-file kinds pin (supplied path ignored),
+  //      identity validates within its set, out-of-set identity → null (reject).
+  check("pin: operational-rule ignores a hallucinated path → canonical",
+    pinProposalTargetFile("operational-rule", "/Users/anyone/LifeOS/USER/CONFIG/OPERATIONAL_RULES.md") === OPERATIONAL_RULES_PATH);
+  check("pin: style ignores any supplied path → canonical",
+    pinProposalTargetFile("style", "/tmp/whatever.md") === WRITINGSTYLE_PATH);
+  check("pin: identity keeps an in-set path (PRINCIPAL_IDENTITY)",
+    pinProposalTargetFile("identity", PRINCIPAL_IDENTITY_PATH) === PRINCIPAL_IDENTITY_PATH);
+  check("pin: identity keeps an in-set path (DA_IDENTITY)",
+    pinProposalTargetFile("identity", DA_IDENTITY_PATH) === DA_IDENTITY_PATH);
+  check("pin: identity rejects an out-of-set path → null",
+    pinProposalTargetFile("identity", "/tmp/evil.md") === null);
 
   // 15. Known-kind helper
   check("isKnownProposalKind: 'style' true", isKnownProposalKind("style"));
