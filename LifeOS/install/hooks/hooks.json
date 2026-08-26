@@ -355,6 +355,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "$HOME/.claude/hooks/DriftReminder.hook.ts",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "$HOME/.claude/hooks/TimeContext.hook.ts",
             "timeout": 5,
             "async": true

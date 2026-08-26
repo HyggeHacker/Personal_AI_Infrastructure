@@ -32,7 +32,7 @@ import { run as isaCloseGate } from "./ISACloseGate.hook";
 import { run as isaFoldGate } from "./ISAFoldGate.hook";
 import { run as isaStructureGate } from "./ISAGate.hook";
 import { run as writingGate } from "./WritingGate.hook";
-import { run as deployRegistrationGate } from "./DeployRegistrationGate.hook";
+// DeployRegistrationGate is deliberately NOT imported — see the note in GATES below.
 
 type GateFn = (input: any) => Promise<object | null>;
 
@@ -57,10 +57,14 @@ const GATES: Array<[string, GateFn]> = [
   // touched this turn (legacy files never retroactively gated). Complements
   // ISACloseGate (stale-ISA) with a different, structural tooth.
   ["ISAGate", isaStructureGate],
-  // DeployRegistrationGate (OPERATIONAL_RULES § Bunker registration): a custom-domain
-  // wrangler deploy this session must be registered in PROJECTS.md + the ARBOL
-  // curated inventory before the turn ends. Fires once per domain per session.
-  ["DeployRegistrationGate", deployRegistrationGate],
+  // DeployRegistrationGate: UNWIRED IN THIS FORK BY OWNER DECISION (2026-08-25).
+  // Upstream wires it here to require that a custom-domain wrangler deploy be
+  // registered in PROJECTS.md + the ARBOL curated inventory before the turn ends.
+  // That is Bunker/Arbol publishing discipline this fork does not practise, so the
+  // gate would only ever fire as a false positive. The three ISA gates above WERE
+  // adopted in the same decision — this is a targeted exclusion, not gate aversion.
+  // Re-adding it means restoring the import too. If an upstream merge re-adds this
+  // entry, that is the merge reverting a deliberate choice, not a fix.
   ["WritingGate", writingGate],
 ];
 
