@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * @version 1.0.0
+ * @version 1.2.0
  * StopGates.hook.ts — the ONE Stop-event gate hook.
  *
  * Consolidation (2026-07-11, hooks BPE pass): merges the three per-turn gate
@@ -11,7 +11,9 @@
  *
  *   1. OutputFormatGate.run()  — banner/aispeak/heartbeat (telemetry-only today)
  *   2. VerificationGate.run()  — claim-vs-evidence teeth (T1-T3 block)
- *   3. WritingGate.run()       — authored-prose audit teeth (strong signals block)
+ *   3. ISACloseGate.run()      — ISA-freshness teeth at major-work completion
+ *   4. ISAFoldGate.run()       — D-50 teeth: prod mutated + ISA untouched blocks
+ *   5. WritingGate.run()       — authored-prose audit teeth (strong signals block)
  *
  * Decision semantics: the FIRST gate returning a `decision:"block"` wins and
  * is emitted; later gates are still evaluated for their telemetry EXCEPT after
@@ -26,7 +28,11 @@
 
 import { readHookInput } from "./lib/hook-io";
 import { run as verificationGate } from "./VerificationGate.hook";
+import { run as isaCloseGate } from "./ISACloseGate.hook";
+import { run as isaFoldGate } from "./ISAFoldGate.hook";
+import { run as isaStructureGate } from "./ISAGate.hook";
 import { run as writingGate } from "./WritingGate.hook";
+// DeployRegistrationGate is deliberately NOT imported — see the note in GATES below.
 
 type GateFn = (input: any) => Promise<object | null>;
 
@@ -38,6 +44,27 @@ type GateFn = (input: any) => Promise<object | null>;
 // format fix is the recovery turn's single clear instruction.
 const GATES: Array<[string, GateFn]> = [
   ["VerificationGate", verificationGate],
+  // ISACloseGate: a completion claim on an active run with a provably stale ISA blocks
+  // once. Order matters — evidence gaps (VerificationGate) outrank the bookkeeping fold-in.
+  ["ISACloseGate", isaCloseGate],
+  // ISAFoldGate (2026-07-29, D-50 enforcement): prod mutated this turn + active run +
+  // ISA untouched + reply silent on ISA state → block. Phrase-independent — the gap
+  // ISACloseGate's COMPLETION_RE cannot see ("rigged and armed" isn't "done").
+  ["ISAFoldGate", isaFoldGate],
+  // ISAGate (2026-07-24, granularity/testability upgrade F3): blocks a close
+  // (phase: complete written this turn) on un-gameable STRUCTURAL violations —
+  // non-M/N progress, fog-at-complete, missing anchors_to. Scoped to ISAs
+  // touched this turn (legacy files never retroactively gated). Complements
+  // ISACloseGate (stale-ISA) with a different, structural tooth.
+  ["ISAGate", isaStructureGate],
+  // DeployRegistrationGate: UNWIRED IN THIS FORK BY OWNER DECISION (2026-08-25).
+  // Upstream wires it here to require that a custom-domain wrangler deploy be
+  // registered in PROJECTS.md + the ARBOL curated inventory before the turn ends.
+  // That is Bunker/Arbol publishing discipline this fork does not practise, so the
+  // gate would only ever fire as a false positive. The three ISA gates above WERE
+  // adopted in the same decision — this is a targeted exclusion, not gate aversion.
+  // Re-adding it means restoring the import too. If an upstream merge re-adds this
+  // entry, that is the merge reverting a deliberate choice, not a fix.
   ["WritingGate", writingGate],
 ];
 

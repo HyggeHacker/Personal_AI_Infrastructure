@@ -10,42 +10,34 @@
 
 [![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&weight=500&size=24&pause=1000&color=8B5CF6&center=true&vCenter=true&width=600&lines=Your+Life+Operating+System;Current+State+%E2%86%92+Ideal+State;Open+source.+Free.+Forever.)](https://github.com/danielmiessler/LifeOS)
 
-<!-- Social -->
-![Stars](https://img.shields.io/github/stars/danielmiessler/LifeOS?style=social)
-![Forks](https://img.shields.io/github/forks/danielmiessler/LifeOS?style=social)
-![Watchers](https://img.shields.io/github/watchers/danielmiessler/LifeOS?style=social)
-
-<!-- Status -->
-![Release](https://img.shields.io/github/v/release/danielmiessler/LifeOS?style=flat&logo=github&color=8B5CF6)
-![Last Commit](https://img.shields.io/github/last-commit/danielmiessler/LifeOS?style=flat&logo=git&color=22C55E)
-![Open Issues](https://img.shields.io/github/issues/danielmiessler/LifeOS?style=flat&logo=github&color=F97316)
-![Open PRs](https://img.shields.io/github/issues-pr/danielmiessler/LifeOS?style=flat&logo=githubaccessories&color=EC4899)
-![License](https://img.shields.io/github/license/danielmiessler/LifeOS?style=flat&color=60A5FA)
-
-<!-- Content -->
-[![Get Started](https://img.shields.io/badge/🚀_Get_Started-Install-22C55E?style=flat)](#install)
-[![Release](https://img.shields.io/badge/Release-v7.1.1-8B5CF6?style=flat)](https://github.com/danielmiessler/LifeOS/releases)
-[![Algorithm](https://img.shields.io/badge/Algorithm-v8.3.0-D97706?style=flat)](https://github.com/danielmiessler/LifeOS/releases)
-[![Pulse](https://img.shields.io/badge/Pulse-included-3B82F6?style=flat)](https://ourlifeos.ai)
+[![Stars](https://img.shields.io/github/stars/danielmiessler/LifeOS?style=flat&logo=github&logoColor=white&label=Stars&color=FFB000&cacheSeconds=1800)](https://github.com/danielmiessler/LifeOS/stargazers)
+[![Forks](https://img.shields.io/github/forks/danielmiessler/LifeOS?style=flat&logo=github&logoColor=white&label=Forks&color=6366F1)](https://github.com/danielmiessler/LifeOS/network/members)
+[![Last Commit](https://img.shields.io/github/last-commit/danielmiessler/LifeOS?style=flat&logo=git&logoColor=white&label=Updated&color=F97316)](https://github.com/danielmiessler/LifeOS/commits/main)
 [![Contributors](https://img.shields.io/github/contributors/danielmiessler/LifeOS?style=flat&logo=githubsponsors&logoColor=white&label=Contributors&color=EC4899)](https://github.com/danielmiessler/LifeOS/graphs/contributors)
 
-<!-- Tech Stack -->
-[![Built with Claude](https://img.shields.io/badge/Built_with-Claude-D4A574?style=flat&logo=anthropic&logoColor=white)](https://claude.ai)
-[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Bun](https://img.shields.io/badge/Bun-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh)
-[![Community](https://img.shields.io/badge/Community-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/danielmiessler)
+[![Release](https://img.shields.io/github/v/release/danielmiessler/LifeOS?style=flat&logo=github&label=Release&color=22C55E)](https://github.com/danielmiessler/LifeOS/releases)
+[![License](https://img.shields.io/github/license/danielmiessler/LifeOS?style=flat&label=License&color=60A5FA)](./LICENSE)
+[![Built with Claude](https://img.shields.io/badge/Built_with-Claude-D4A574?style=flat&logo=anthropic&logoColor=white)](https://claude.ai/code)
 
-**[Visit the Website](https://ourlifeos.ai)** · **[Watch the walkthrough](https://youtu.be/Le0DLrn7ta0)**  ·  **[Releases](https://github.com/danielmiessler/LifeOS/releases)**  ·  **[Docs](https://docs.ourlifeos.ai)**
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Bun](https://img.shields.io/badge/Bun-14151A?style=flat&logo=bun&logoColor=white)](https://bun.sh)
+[![Pulse](https://img.shields.io/badge/Pulse-included-06B6D4?style=flat&logo=activitypub&logoColor=white)](https://ourlifeos.ai)
+[![Community](https://img.shields.io/badge/Community-Discord-5865F2?style=flat&logo=discord&logoColor=white)](https://discord.gg/danielmiessler)
+
+**[Website](https://ourlifeos.ai)** · **[Install](#install)** · **[Walkthrough](https://youtu.be/Le0DLrn7ta0)** · **[Docs](https://docs.ourlifeos.ai)** · **[Releases](https://github.com/danielmiessler/LifeOS/releases)**
 
 </div>
 
 ---
 
+https://github.com/user-attachments/assets/329897f5-828b-4c23-b607-1cf9c71cb4ec
+
 **LifeOS** is a General Purpose AI Harness for doing anything you want to do in life and work with AI. It captures who you are, what you care about, and where you're trying to go, then uses AI that knows you to help you get there. 
 
 And because it has your full context, it makes everything you do more efficient and effective, from building apps, to starting a business, to creative projects…_basically anything_.
 
-The whole system works on one centeral concept: moving from your Current State to your Ideal State in pursuit of Euphoric Surprise.
+> [!NOTE]
+> The whole system works on one central concept: **moving from your Current State to your Ideal State** — in pursuit of Euphoric Surprise.
 
 <div align="center">
 
@@ -77,9 +69,9 @@ Either path needs a capable AI coding harness — we build and run on [Claude Co
 
 ## Core Components
 
-**The unique features** — the parts you won't find anywhere else, plus the subsystems underneath. See them live and click through on **[ourlifeos.ai](https://ourlifeos.ai)**.
+**The unique features** — the parts you won't find anywhere else. Anything a good harness already provides on its own (built-in subagents, for example) isn't listed; this is only what LifeOS adds. See them live and click through on **[ourlifeos.ai](https://ourlifeos.ai)**.
 
-<a href="https://ourlifeos.ai"><img src="images/lifeos-core-components.png" width="100%" alt="LifeOS core components — Current→Ideal State, General Hill Climbing, Euphoric Surprise, TELOS, the Algorithm, the ISA, the Skill System, the Hook System, Pulse, custom spinner verbs and tooltips, plus the supporting subsystems: Memory, Agents, Voice, Learning, Security. Click to explore them live on ourlifeos.ai." /></a>
+<a href="https://ourlifeos.ai"><img src="images/lifeos-core-components.png" width="100%" alt="LifeOS core components — Current→Ideal State, Intent Engineering, General Hill Climbing, Euphoric Surprise, TELOS, the Algorithm, Arbol, Bunker, the ISA System, Cortex, Synapse, Atlas, Ledger, the Skill System, the Hook System, Pulse, Voice, Learning, Security, the Hermes Sidecar, Custom Spinner Verbs, and Custom Tooltips. Click to explore them live on ourlifeos.ai." /></a>
 
 ---
 
@@ -155,12 +147,11 @@ Recovery is straightforward:
 
 ### Star History
 
+<!-- Self-hosted chart: star-history.com's embed API 500s on repos this size
+     (10s timeout re-fetching ~17K stargazers per render). Regenerate at release:
+     bun LIFEOS/TOOLS/GenerateStarHistory.ts danielmiessler/LifeOS images/star-history.svg -->
 <a href="https://star-history.com/#danielmiessler/LifeOS&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=danielmiessler/LifeOS&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=danielmiessler/LifeOS&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=danielmiessler/LifeOS&type=Date" />
- </picture>
+ <img alt="Star History Chart" src="./images/star-history.svg" width="800" />
 </a>
 
 ---
@@ -190,9 +181,56 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ### Contributors
 
+LifeOS is built in the open, and the community's pull requests, forensic bug reports, and fresh-install writeups directly shape every release. The public repo is generated from a private source tree, so community PRs are ported into source with credit rather than merged directly — same fix, durable across releases.
+
+<p align="center">
+<a href="https://github.com/danielmiessler"><img src="https://avatars.githubusercontent.com/u/50654?v=4&s=64" width="48" height="48" alt="danielmiessler" title="danielmiessler"></a>
+<a href="https://github.com/christauff"><img src="https://avatars.githubusercontent.com/u/1050379?v=4&s=64" width="48" height="48" alt="christauff" title="christauff"></a>
+<a href="https://github.com/kaimagnus"><img src="https://avatars.githubusercontent.com/u/260860065?v=4&s=64" width="48" height="48" alt="kaimagnus" title="kaimagnus"></a>
+<a href="https://github.com/m4nt0de4"><img src="https://avatars.githubusercontent.com/u/176330864?v=4&s=64" width="48" height="48" alt="m4nt0de4" title="m4nt0de4"></a>
+<a href="https://github.com/ksylvan"><img src="https://avatars.githubusercontent.com/u/1226059?v=4&s=64" width="48" height="48" alt="ksylvan" title="ksylvan"></a>
+<a href="https://github.com/mvoehringer"><img src="https://avatars.githubusercontent.com/u/2719466?v=4&s=64" width="48" height="48" alt="mvoehringer" title="mvoehringer"></a>
+<a href="https://github.com/sauldataman"><img src="https://avatars.githubusercontent.com/u/156217018?v=4&s=64" width="48" height="48" alt="sauldataman" title="sauldataman"></a>
+<a href="https://github.com/sti0"><img src="https://avatars.githubusercontent.com/u/18382402?v=4&s=64" width="48" height="48" alt="sti0" title="sti0"></a>
+<a href="https://github.com/pybe"><img src="https://avatars.githubusercontent.com/u/3582919?v=4&s=64" width="48" height="48" alt="pybe" title="pybe"></a>
+<a href="https://github.com/fayerman-source"><img src="https://avatars.githubusercontent.com/u/234407473?v=4&s=64" width="48" height="48" alt="fayerman-source" title="fayerman-source"></a>
+<a href="https://github.com/neilsoult"><img src="https://avatars.githubusercontent.com/u/5273521?v=4&s=64" width="48" height="48" alt="neilsoult" title="neilsoult"></a>
+<a href="https://github.com/HotSauceHacker"><img src="https://avatars.githubusercontent.com/u/31944906?v=4&s=64" width="48" height="48" alt="HotSauceHacker" title="HotSauceHacker"></a>
+<a href="https://github.com/salmanmkc"><img src="https://avatars.githubusercontent.com/u/32169182?v=4&s=64" width="48" height="48" alt="salmanmkc" title="salmanmkc"></a>
+<a href="https://github.com/Seadubb"><img src="https://avatars.githubusercontent.com/u/174173018?v=4&s=64" width="48" height="48" alt="Seadubb" title="Seadubb"></a>
+<a href="https://github.com/StarksLabs"><img src="https://avatars.githubusercontent.com/u/281132662?v=4&s=64" width="48" height="48" alt="StarksLabs" title="StarksLabs"></a>
+<a href="https://github.com/asdf8675309"><img src="https://avatars.githubusercontent.com/u/174058705?v=4&s=64" width="48" height="48" alt="asdf8675309" title="asdf8675309"></a>
+<a href="https://github.com/imrathion"><img src="https://avatars.githubusercontent.com/u/16126111?v=4&s=64" width="48" height="48" alt="imrathion" title="imrathion"></a>
+<a href="https://github.com/jbmml"><img src="https://avatars.githubusercontent.com/u/52386063?v=4&s=64" width="48" height="48" alt="jbmml" title="jbmml"></a>
+<a href="https://github.com/justinkatz94-glitch"><img src="https://avatars.githubusercontent.com/u/247285317?v=4&s=64" width="48" height="48" alt="justinkatz94-glitch" title="justinkatz94-glitch"></a>
+<a href="https://github.com/bkolendowski"><img src="https://avatars.githubusercontent.com/u/76254268?v=4&s=64" width="48" height="48" alt="bkolendowski" title="bkolendowski"></a>
+<a href="https://github.com/smolcompute"><img src="https://avatars.githubusercontent.com/u/138336591?v=4&s=64" width="48" height="48" alt="smolcompute" title="smolcompute"></a>
+<a href="https://github.com/neilinger"><img src="https://avatars.githubusercontent.com/u/3368283?v=4&s=64" width="48" height="48" alt="neilinger" title="neilinger"></a>
+<a href="https://github.com/Mutdogus"><img src="https://avatars.githubusercontent.com/u/156828?v=4&s=64" width="48" height="48" alt="Mutdogus" title="Mutdogus"></a>
+<a href="https://github.com/qozle"><img src="https://avatars.githubusercontent.com/u/6171907?v=4&s=64" width="48" height="48" alt="qozle" title="qozle"></a>
+<a href="https://github.com/jnpkr"><img src="https://avatars.githubusercontent.com/u/1964102?v=4&s=64" width="48" height="48" alt="jnpkr" title="jnpkr"></a>
+<a href="https://github.com/IJASolutions"><img src="https://avatars.githubusercontent.com/u/246399781?v=4&s=64" width="48" height="48" alt="IJASolutions" title="IJASolutions"></a>
+<a href="https://github.com/emory"><img src="https://avatars.githubusercontent.com/u/660055?v=4&s=64" width="48" height="48" alt="emory" title="emory"></a>
+<a href="https://github.com/elhoim"><img src="https://avatars.githubusercontent.com/u/178521?v=4&s=64" width="48" height="48" alt="elhoim" title="elhoim"></a>
+<a href="https://github.com/vibecrypto"><img src="https://avatars.githubusercontent.com/u/291395314?v=4&s=64" width="48" height="48" alt="vibecrypto" title="vibecrypto"></a>
+<a href="https://github.com/dactylmedia"><img src="https://avatars.githubusercontent.com/u/148711391?v=4&s=64" width="48" height="48" alt="dactylmedia" title="dactylmedia"></a>
+<a href="https://github.com/xmasyx"><img src="https://avatars.githubusercontent.com/u/16624475?v=4&s=64" width="48" height="48" alt="xmasyx" title="xmasyx"></a>
+<a href="https://github.com/maxolasersquad"><img src="https://avatars.githubusercontent.com/u/177150?v=4&s=64" width="48" height="48" alt="maxolasersquad" title="maxolasersquad"></a>
+</p>
+
+<sup>The 28 highest-commit contributors — [see all on the contributors graph](https://github.com/danielmiessler/LifeOS/graphs/contributors). Avatars are committers only, so the lists below carry everyone the graph can't see.</sup>
+
 **[fayerman-source](https://github.com/fayerman-source)** — Google Cloud TTS provider integration and Linux audio support for the voice system.
 
 **Matt Espinoza** — Extensive testing, ideas, and feedback, plus roadmap contributions.
+
+**Code contributions (merged or ported PRs):**
+adamlevoy · alloutflo · anikinsasha · asdf8675309 · atabisz · chrisglick · christauff · Chuckos · erf1nd0r · HotSauceHacker · imrathion · J0UH · jbmml · jnpkr · justinkatz94-glitch · ksylvan · m4nt0de4 · m8ryx · MarvinDontPanic · maxolasersquad · Mutdogus · neilinger · neilsoult · pybe · qozle · rathko · rpriven · runnerr0 · salmanmkc · sauldataman · Seadubb · Spirotot · StarksLabs · thatsjet · tzioup
+
+**Bug reports, fresh-install forensics, and design feedback:**
+badosanjos · benoitdepaire · bnkath2o · brycemagera · catchingknives · DAESA24 · deleyva · DRAZY · DennisTraub · docxology · DolphusCY · donovan-sec · DonovanJonesUK · eccentricnode · fjp-veo · harryf · hjbrandt · HyggeHacker · ichoosetoaccept · infinitelyloopy-bt · jacobo-ortiz · JElliottMiller · jdrolls · jlacour-git · jmmarkiewicz · karlwaldman · klausagnoletti · lexilexikon · lgangitano · loudoguno · luccomo · MatiasBarboza · MHoroszowski · michaelaye · mygirleatsmayo · nbost130 · NodarDavituri · NorthwoodsSentinel · packetsherpa · Piroshki · ricklesgibson · rikitikitavi2012-debug · Riskjuggler · sbusc · simeonzickert · Steffen025 · stratofax · tzioup · vanvonlj · vichong · virtualian · vpzed · waveman2020-sudo · wojteksbt · xmasyx
+
+<sup>Refreshed with each release. If your contribution is missing, open an issue — that's a bug too.</sup>
 
 ---
 
@@ -220,6 +258,21 @@ MIT License - see [LICENSE](LICENSE) for details.
 <summary><strong>📜 Update History</strong></summary>
 
 <br/>
+
+**v7.28.3 — Cortex, Hermes, and hardened releases**
+- **Cortex** — the memory system, named: hot-layer memory, a typed Knowledge Archive (People, Companies, Ideas, Research), learnings, and work history, consolidated across sessions so each one starts smarter than the last.
+- **Hermes sidecar** — an optional second front door: talk to your LifeOS as an agent from a terminal, with the same constitution, identity, and skills. One brain, another way in.
+- **Named subsystems** — Synapse (the input router), Conduit and Feed (the internal and external senses), Atlas (the live asset graph), and Ledger (change tracking), each a product within the product.
+- **Release-security hardening** — three new deterministic gates (sanitizer-residue, licensed-font, dead-legacy-doc-pointer); previously-shipped commercially licensed fonts removed.
+- [Full release notes](https://github.com/danielmiessler/LifeOS/releases)
+
+**v7.1.1 — Install Awareness**
+- **Doctor** — `bun LIFEOS/TOOLS/Doctor.ts` reports the real state of every optional capability (live, broken, declined, stale) and reconciles hooks on disk against what's registered.
+- **Capability-aware install** — the installer asks now/later/never per optional capability and records the choice; failure-aware nudges surface the exact fix command when a broken capability trips.
+- **System Health in Pulse** — capability states, fix commands, and heartbeats on the hooks page.
+- **Algorithm v8.4.0** — plain-language depth steering registers before a run opens; nudges bounded to a single line.
+- **Community fixes** — #1450, #1456, #1463, #1470, #1471. Thanks to the contributors.
+- [Full release notes](https://github.com/danielmiessler/LifeOS/releases)
 
 **v7.0.0 — The Bitter Pill Release**
 - **Bitter Pill Engineering** — scaffolding cut across the whole system on one test: would a smarter model make this rule unnecessary? Reasoning choreography, self-scores, and duplicated routing are gone; the verification kernel stays.
@@ -253,7 +306,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **Pulse** — unified daemon (port 31337): voice, hooks, observability, cron, Life Dashboard, wiki API, optional Telegram/iMessage bridges. Replaces every previous loose service.
 - **The DA** — Digital Assistant identity layer. PRINCIPAL_IDENTITY + DA_IDENTITY pair, loaded at session start. `/interview` walks you through naming your DA, picking a voice, capturing TELOS.
 - **Algorithm v6.3.0** — seven-phase loop (OBSERVE → THINK → PLAN → BUILD → EXECUTE → VERIFY → LEARN). Classifier picks MINIMAL/NATIVE/ALGORITHM and tier (E1–E5) per prompt. Verification doctrine (live-probe, advisor calls, cross-vendor audit at E4/E5).
-- **The ISA** — Ideal State Artifact primitive. One document, twelve sections, five identities. Owned by the **ISA skill**.
+- **ISA System** — Ideal State Artifact primitive. One document, twelve sections, five identities. Owned by the **ISA skill**.
 - **Containment + release tooling** — privacy is structural. Security gates run on every public release; two-stage release (stage → publish) never auto-chains.
 - **Memory v7.6** — structured by purpose: WORK, KNOWLEDGE (typed graph), LEARNING, RELATIONSHIP, OBSERVABILITY, STATE.
 - [Full release notes + migration guide](https://github.com/danielmiessler/LifeOS/releases)

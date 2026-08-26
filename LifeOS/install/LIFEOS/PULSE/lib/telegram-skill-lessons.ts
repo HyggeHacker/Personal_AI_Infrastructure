@@ -4,7 +4,7 @@
  * telegram-skill-lessons — the surface + apply arm of the inward-arrow loop.
  *
  * Skill-lessons live in their OWN queue (`pending-skill-lessons.jsonl`), NOT the
- * identity-proposal queue, because the identity consumer (telegram-proposals.ts
+ * identity-proposal queue, because the identity consumer (memory-proposals.ts
  * loadProposalQueue → writeProposalQueue) filters to target_file+edit rows and
  * REWRITES the file from that filtered set, which would silently drop a foreign
  * skill-lesson row. This module is the isolated reader/surfacer/applier for that
@@ -14,8 +14,9 @@
  * The apply arm (`applySkillLesson`) implements the ImproveSkill "MERGE mode"
  * Gotchas contract deterministically: land one bullet in the skill's `## Gotchas`
  * section, stamped with provenance, skipping a near-duplicate. It writes SKILL.md
- * ONLY from the human approval path — the caller is the Telegram reply handler,
- * a human-gated actor. No hook or autonomous reviewer imports this. SKILL.md
+ * ONLY from the human approval path — the caller is the channel reply handler
+ * (lib/proposal-approvals.ts, surfaced over iMessage), a human-gated actor.
+ * No hook or autonomous reviewer imports this. SKILL.md
  * stays Tier D; this is the authorized apply actor, not the autonomous reviewer.
  */
 
@@ -23,8 +24,14 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeF
 import { homedir } from "node:os";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { PENDING_SKILL_LESSONS_PATH } from "../../TOOLS/MemoryTypes";
-// Reuse the identity reply grammar so `yes/no/edit #id` behaves identically.
-export { parseProposalReply, type ProposalReply } from "./telegram-proposals";
+// The identity reply grammar used to be re-exported from ./telegram-proposals,
+// which upstream v7.40.4 deleted with the rest of the Telegram pipeline. Its
+// successor lives in ./memory-proposals (formerly telegram-proposals), which
+// carries the separator-required fix from public issue #1844 — an inlined copy
+// here briefly reintroduced the zero-length-separator bug ("Non ..." parsing as
+// {kind:"no"}). Re-exported so existing importers keep their surface while one
+// grammar remains authoritative. (2026-08-25)
+export { parseProposalReply, type ProposalReply } from "./memory-proposals";
 
 const HOME = process.env.HOME ?? homedir();
 const CLAUDE_ROOT = pathResolve(HOME, ".claude");

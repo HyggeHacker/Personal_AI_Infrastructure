@@ -60,7 +60,11 @@ export interface EnvDetection {
   ssh: boolean;
   bun: ToolInfo;
   git: ToolInfo;
-  /** A prior LifeOS/PAI install is present (settings.json exists in the config root). */
+  /**
+   * A prior LifeOS install is present. Keyed on `<configRoot>/LIFEOS/VERSION`,
+   * which only DeployCore writes — settings.json exists on any harness that has
+   * ever run, LifeOS or not (public issue #1727, @rpriven).
+   */
   existingInstall: boolean;
   /**
    * This IS the author's live source tree — refuse all mutation. Marker: the
@@ -181,7 +185,8 @@ export function detectEnv(): EnvDetection {
     ssh,
     bun: detectTool("bun", "bun --version"),
     git: detectTool("git", "git --version"),
-    existingInstall: existsSync(settingsPath),
+    // public issue #1727, @rpriven — LifeOS-specific marker, not settings.json.
+    existingInstall: existsSync(join(configRoot, "LIFEOS", "VERSION")),
     isDevTree: detectDevTree(configRoot),
     settingsExists: existsSync(settingsPath),
     claudeMdExists: existsSync(claudeMdPath),
@@ -198,7 +203,6 @@ export interface ApiKeyScan {
   anthropic?: string;
   openai?: string;
   google?: string;
-  xai?: string;
   perplexity?: string;
 }
 
@@ -224,7 +228,6 @@ export function scanApiKeys(home: string, configDir: string): ApiKeyScan {
     ["anthropic", /(?:^|\n)\s*(?:export\s+)?ANTHROPIC_API_KEY\s*=\s*["']?([^"'\s#]+)/],
     ["openai", /(?:^|\n)\s*(?:export\s+)?OPENAI_API_KEY\s*=\s*["']?([^"'\s#]+)/],
     ["google", /(?:^|\n)\s*(?:export\s+)?(?:GEMINI_API_KEY|GOOGLE_API_KEY|GOOGLE_GENAI_API_KEY)\s*=\s*["']?([^"'\s#]+)/],
-    ["xai", /(?:^|\n)\s*(?:export\s+)?(?:XAI_API_KEY|GROK_API_KEY)\s*=\s*["']?([^"'\s#]+)/],
     ["perplexity", /(?:^|\n)\s*(?:export\s+)?PERPLEXITY_API_KEY\s*=\s*["']?([^"'\s#]+)/],
   ];
   const placeholder = /^(your-key-here|sk-xxxxxxxx|xxxxx|REPLACE_ME|TODO)/i;
@@ -328,11 +331,35 @@ export function scanSettingsHooks(settingsPath: string): SettingsHookScan {
 //  follows the proven logic from the legacy engine actions.ts.
 // ════════════════════════════════════════════════════════════════════
 
-import { cpSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, lstatSync, mkdirSync, readdirSync, readlinkSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-const TEMPLATE_EXTENSIONS = new Set([".md", ".json", ".txt", ".ts", ".toml", ".yaml", ".yml", ".sh"]);
+// Extended 2026-07-25 (Forge finding, v7.15.0 re-audit). The set stopped at .ts,
+// so every Pulse component and the built Next bundle were invisible to
+// substitution — a fresh install shipped a dashboard rendering
+// `desc="scored against TELOS — is this good for what {{PRINCIPAL_NAME}} is
+// actually doing?"` to the user, both in src and in the served
+// out/_next/static chunk. .css carries them too (Valkyrie voice notes).
+const TEMPLATE_EXTENSIONS = new Set([
+  ".md", ".json", ".txt", ".ts", ".toml", ".yaml", ".yml", ".sh",
+  ".tsx", ".jsx", ".js", ".css",
+]);
 const SKIP_DIRS = new Set(["node_modules", ".git", "MEMORY"]);
+
+/**
+ * Extension of a path's BASENAME, lowercased; "" when there is none.
+ *
+ * Was `filePath.slice(filePath.lastIndexOf("."))`, which searches the whole path:
+ * for `~/.claude/skills/Fabric/Patterns/raycast/yt` that returns
+ * ".claude/skills/Fabric/Patterns/raycast/yt" — the dot in `.claude`. Harmless by
+ * accident (no such key in the set, so extension-less files were skipped), but it
+ * would have mis-typed any file under a dotted directory the moment the set grew.
+ */
+function fileExtension(filePath: string): string {
+  const base = filePath.slice(filePath.lastIndexOf("/") + 1);
+  const dot = base.lastIndexOf(".");
+  return dot <= 0 ? "" : base.slice(dot).toLowerCase();
+}
 
 /**
  * Recursive, existsSync-GUARDED copy. Copies only files/dirs absent at dst —
@@ -393,20 +420,88 @@ export function substituteTree(rootDir: string, vars: TemplateVars): { scanned: 
   let applied = 0;
   const entries = Object.entries(vars);
   const processFile = (filePath: string): void => {
-    if (!TEMPLATE_EXTENSIONS.has(filePath.slice(filePath.lastIndexOf(".")))) return;
+    if (!TEMPLATE_EXTENSIONS.has(fileExtension(filePath))) return;
     scanned++;
     const before = readFileSync(filePath, "utf-8");
     let after = before;
     for (const [placeholder, value] of entries) {
+      // Only substitute properly-delimited {{TOKEN}} placeholders. A caller
+      // passing a bare key (e.g. "HOME") would otherwise rewrite every HOME
+      // substring across settings AND source — `const HOME` became
+      // `const /home/<user>` and corrupted 146 .ts files on one install
+      // (public issue #1484, @docxology).
+      if (!/^\{\{[A-Z0-9_]+\}\}$/.test(placeholder)) continue;
       const parts = after.split(placeholder);
       applied += parts.length - 1;
       after = parts.join(value);
     }
     if (after !== before) {
+      // Preserve the original mode: writeFileSync creates the tmp at umask
+      // default (0644) and renameSync replaces the inode, so without this every
+      // substituted hook lost its exec bit — 10 wired hooks silently dead on a
+      // fresh install (public issue #1803, @mark-219).
+      const mode = statSync(filePath).mode & 0o7777;
       const tmp = filePath + ".lifeos.tmp";
-      writeFileSync(tmp, after);
+      writeFileSync(tmp, after, { mode });
       renameSync(tmp, filePath);
       modified++;
+    }
+  };
+  const walk = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (SKIP_DIRS.has(entry.name)) continue;
+      // Never substitute into the redistribution payload: rendering the nested
+      // skills/LifeOS/install/ copy bakes THIS user's identity into ~121
+      // template files that must stay generic for the next install.
+      // (public issue #1828, @Piroshki, root cause @DRAZY)
+      if (entry.name === "install" && dir.endsWith(join("skills", "LifeOS"))) continue;
+      const child = join(dir, entry.name);
+      if (entry.isDirectory()) walk(child);
+      else if (entry.isFile()) processFile(child);
+    }
+  };
+  if (existsSync(rootDir) && lstatSync(rootDir).isFile()) processFile(rootDir);
+  else walk(rootDir);
+  return { scanned, modified, applied };
+}
+
+/**
+ * Identity placeholders the release sanitizer emits and `substituteTree` is
+ * expected to fill. Scoped deliberately: the payload legitimately contains other
+ * `{{TOKEN}}` forms (Art's thumbnail templating, Fabric pattern bodies, prose
+ * about placeholders), so a blanket `{{[A-Z_]+}}` sweep is noise, not a signal.
+ */
+const IDENTITY_PLACEHOLDERS = [
+  "{{DA_NAME}}", "{{DA_FULL_NAME}}", "{{PRINCIPAL_NAME}}", "{{PRINCIPAL_FULL_NAME}}",
+  "{{PRIMARY_VOICE_ID}}", "{{SECONDARY_VOICE_ID}}", "{{LIFEOS_VERSION}}",
+] as const;
+
+/**
+ * Post-substitution verification: report any identity placeholder still present
+ * in the installed tree.
+ *
+ * Why this exists (Forge finding D, 2026-07-25 v7.15.0 audit): `substituteTree`
+ * has no code caller. The install is AI-driven by design — `Workflows/Setup.md`
+ * step 34 instructs the agent to call it — so a skipped or mis-rooted step ships
+ * a system that addresses its owner as `{{PRINCIPAL_NAME}}` with nothing failing.
+ * The old engine's `runSurvivingPlaceholdersCheck` covered this and was lost when
+ * `engine/actions.ts` was retired; this restores it against the current engine.
+ * Verification, not mutation: the caller decides whether to re-run substitution
+ * or abort.
+ */
+export function checkSurvivingPlaceholders(rootDir: string): {
+  passed: boolean; files: Array<{ file: string; placeholder: string; count: number }>; total: number;
+} {
+  const files: Array<{ file: string; placeholder: string; count: number }> = [];
+  let total = 0;
+  const processFile = (filePath: string): void => {
+    if (!TEMPLATE_EXTENSIONS.has(fileExtension(filePath))) return;
+    let src: string;
+    try { src = readFileSync(filePath, "utf-8"); } catch { return; }
+    for (const placeholder of IDENTITY_PLACEHOLDERS) {
+      const count = src.split(placeholder).length - 1;
+      if (count > 0) { files.push({ file: filePath, placeholder, count }); total += count; }
     }
   };
   const walk = (dir: string): void => {
@@ -420,7 +515,7 @@ export function substituteTree(rootDir: string, vars: TemplateVars): { scanned: 
   };
   if (existsSync(rootDir) && lstatSync(rootDir).isFile()) processFile(rootDir);
   else walk(rootDir);
-  return { scanned, modified, applied };
+  return { passed: total === 0, files, total };
 }
 
 /**
@@ -478,17 +573,38 @@ function mergeTree(src: string, dst: string, stamp: string): { copied: number; o
 export function setupUserSeparation(
   configRoot: string,
   configDir: string,
-): { action: "already-linked" | "linked" | "scaffolded-linked"; target: string; copied: number; overwritten?: number; preserved?: number; backup?: string; error?: string } {
+): { action: "already-linked" | "linked" | "scaffolded-linked" | "link-repair-failed"; target: string; copied: number; overwritten?: number; preserved?: number; backup?: string; error?: string } {
   const liveUserDir = join(configRoot, "LIFEOS", "USER");
   const dataUserDir = join(configDir, "USER");
 
-  // Branch (a): already a correct symlink → no-op.
-  if (existsSync(liveUserDir)) {
-    const st = lstatSync(liveUserDir);
-    if (st.isSymbolicLink()) {
-      try {
-        if (readlinkSync(liveUserDir) === dataUserDir) return { action: "already-linked", target: dataUserDir, copied: 0 };
-      } catch { /* fall through to rebuild */ }
+  // Same path on both sides (configDir resolves inside configRoot) — nothing to
+  // separate; the rename-aside branch below would EEXIST on its own symlink and
+  // strand the backup tree. Public issue #1694, @dissembler21-png.
+  if (resolve(liveUserDir) === resolve(dataUserDir)) {
+    return { action: "already-linked", target: dataUserDir, copied: 0 };
+  }
+
+  // Branch (a): inspect any symlink occupying liveUserDir. lstatSync does NOT
+  // follow the link, so it sees a DANGLING link (target moved, deleted, or
+  // restored from backup) that existsSync — which follows — reports as absent.
+  // Without this, a dangling link fell through every branch to symlinkSync on an
+  // occupied path, EEXIST'd, and returned a success-shaped "scaffolded-linked"
+  // action with the error buried in it. (Forge cross-vendor audit 2026-08-11, [C])
+  const liveLstat = lstatSync(liveUserDir, { throwIfNoEntry: false });
+  if (liveLstat?.isSymbolicLink()) {
+    let dest: string | null = null;
+    try { dest = readlinkSync(liveUserDir); } catch { /* unreadable link → treat as stale */ }
+    if (dest === dataUserDir && existsSync(liveUserDir)) {
+      // Correct link, target present → genuine no-op.
+      return { action: "already-linked", target: dataUserDir, copied: 0 };
+    }
+    // Wrong target, or dangling (target missing) → remove the stale link so the
+    // rebuild branches below recreate it. Unlinking a symlink never touches the
+    // target's contents.
+    try {
+      unlinkSync(liveUserDir);
+    } catch (err) {
+      return { action: "link-repair-failed", target: dataUserDir, copied: 0, error: `could not remove stale/dangling USER symlink at ${liveUserDir}: ${err instanceof Error ? err.message : String(err)}` };
     }
   }
 
@@ -514,7 +630,9 @@ export function setupUserSeparation(
     copied = merged.copied;
     try {
       mkdirSync(dirname(liveUserDir), { recursive: true });
-      symlinkSync(dataUserDir, liveUserDir);
+      // public issue #1730, @umair-a11y — "junction" lets Windows link a dir without
+      // elevation; the arg is ignored on POSIX.
+      symlinkSync(dataUserDir, liveUserDir, "junction");
       return { action: "linked", target: dataUserDir, copied, overwritten: merged.overwritten, preserved: merged.preserved, backup: backupDir };
     } catch (err) {
       return { action: "linked", target: dataUserDir, copied, overwritten: merged.overwritten, preserved: merged.preserved, backup: backupDir, error: `symlink creation failed (live USER preserved at ${backupDir}): ${err instanceof Error ? err.message : String(err)}` };
@@ -524,7 +642,8 @@ export function setupUserSeparation(
   // Branch (c): fresh install — scaffold the data home (if empty) + symlink.
   try {
     mkdirSync(dirname(liveUserDir), { recursive: true });
-    symlinkSync(dataUserDir, liveUserDir);
+    // public issue #1730, @umair-a11y — see junction note above.
+    symlinkSync(dataUserDir, liveUserDir, "junction");
     return { action: "scaffolded-linked", target: dataUserDir, copied };
   } catch (err) {
     return { action: "scaffolded-linked", target: dataUserDir, copied, error: `symlink creation failed: ${err instanceof Error ? err.message : String(err)}` };
@@ -560,7 +679,7 @@ type HooksMap = Record<string, MatcherGroup[]>;
 /**
  * Normalize a hook command for dedup: collapse the harness/PAI path-var forms to
  * a single canonical token and squeeze whitespace, so the same hook expressed as
- * `${LIFEOS_DIR}/x`, `$CLAUDE_PROJECT_DIR/x`, or `~/.claude/x` dedupes to one.
+ * `${LIFEOS_DIR}/x`, `$LIFEOS_DIR/x`, or `~/.claude/x` dedupes to one.
  */
 function normalizeCommand(cmd: string): string {
   return cmd
