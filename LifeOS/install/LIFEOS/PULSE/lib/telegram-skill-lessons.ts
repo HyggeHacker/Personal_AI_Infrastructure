@@ -23,8 +23,36 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeF
 import { homedir } from "node:os";
 import { dirname, join, resolve as pathResolve } from "node:path";
 import { PENDING_SKILL_LESSONS_PATH } from "../../TOOLS/MemoryTypes";
-// Reuse the identity reply grammar so `yes/no/edit #id` behaves identically.
-export { parseProposalReply, type ProposalReply } from "./telegram-proposals";
+// The identity reply grammar, inlined. This used to be re-exported from
+// ./telegram-proposals, but upstream v7.40.4 deleted the whole Telegram pipeline
+// (telegram-proposals, telegram-sessions, session-store, context-compression, and
+// the grammy dep) in favour of iMessage/Hermes/Conduit. The grammar itself is
+// channel-agnostic — `yes/no/edit #id` reads the same over any transport — so it
+// is kept here verbatim rather than lost with the transport. (2026-08-25)
+export type ProposalReply =
+  | { kind: "yes"; id: string }
+  | { kind: "no"; id: string }
+  | { kind: "edit"; id: string; editText: string }
+  | { kind: "list" }
+  | { kind: null };
+
+export function parseProposalReply(text: string): ProposalReply {
+  const trimmed = text.trim();
+  if (/^proposals?$/i.test(trimmed)) return { kind: "list" };
+  const m = trimmed.match(/^(yes|no|edit)\s*#?([\w-]+)(?:\s+(.+))?$/i);
+  if (!m) {
+    const m2 = trimmed.match(/^#([\w-]+)\s+(yes|no|edit)(?:\s+(.+))?$/i);
+    if (!m2) return { kind: null };
+    const kind = m2[2]!.toLowerCase() as "yes" | "no" | "edit";
+    const id = m2[1]!;
+    if (kind === "edit") return { kind, id, editText: (m2[3] ?? "").trim() };
+    return { kind, id };
+  }
+  const kind = m[1]!.toLowerCase() as "yes" | "no" | "edit";
+  const id = m[2]!;
+  if (kind === "edit") return { kind, id, editText: (m[3] ?? "").trim() };
+  return { kind, id };
+}
 
 const HOME = process.env.HOME ?? homedir();
 const CLAUDE_ROOT = pathResolve(HOME, ".claude");
