@@ -44,15 +44,33 @@ const ONLY = args.includes("--file") ? args[args.indexOf("--file") + 1] : null;
 
 const cutoff = new Date(Date.now() - KEEP_DAYS * 86400_000).toISOString();
 
-/** Pull an ISO timestamp without a full JSON.parse — this runs over ~60k lines. */
+/**
+ * Pull an ISO timestamp without a full JSON.parse — this runs over ~60k lines.
+ *
+ * BOTH key spellings, and that is not defensive padding. The first version matched
+ * `"timestamp":"` only, so every `"ts":`-keyed log — fence-gate, memory-health,
+ * writing-gate, session-costs — hit the keep-undated branch and was NEVER pruned.
+ * The retention window silently did not apply to them for as long as it shipped.
+ * If a third spelling ever appears, add it here rather than letting it fall through.
+ */
+const TS_KEYS = ['"timestamp":"', '"ts":"', '"lastTimestamp":"'] as const;
+// Surveyed 2026-08-26 across every OBSERVABILITY log: `ts` is the majority spelling,
+// `timestamp` is used by tool-activity/tool-failures/config-changes/hook-healer, and
+// session-costs alone uses first/lastTimestamp. `lastTimestamp` is the correct one to
+// age on — a session should expire on its LAST activity, not when it started.
+// `"timestamp":"` does not accidentally match `"firstTimestamp":"`: the leading quote
+// and lower-case t are both required, which is why this list is literal, not a regex.
 function tsOf(line: string): string | null {
-  const i = line.indexOf('"timestamp":"');
-  if (i < 0) return null;
-  return line.slice(i + 13, i + 13 + 24);
+  for (const k of TS_KEYS) {
+    const i = line.indexOf(k);
+    if (i >= 0) return line.slice(i + k.length, i + k.length + 24);
+  }
+  return null;
 }
 
 let totalFreed = 0;
 const rows: string[] = [];
+const warnings: string[] = [];
 
 const files = ONLY ? [ONLY] : readdirSync(OBS).filter((f) => f.endsWith(".jsonl"));
 
@@ -81,6 +99,31 @@ for (const name of files) {
       freed / 1048576
     ).toFixed(1)}MB${undated ? `  (${undated} undated kept)` : ""}`,
   );
+  // Undated lines are UNPRUNABLE, so a file that is mostly undated is not being
+  // retained - it is being skipped. The first version reported this as a quiet
+  // parenthetical and I read "(2016 undated kept)" as conservative safety rather
+  // than as "this file has no parseable date and the window does not apply to it".
+  // A skipped file must announce itself, because the failure mode is silence.
+  if (undated > 0 && undated / lines.length > 0.1) {
+    warnings.push(
+      `  ⚠ ${name}: ${undated}/${lines.length} lines (${Math.round((undated / lines.length) * 100)}%) have no parseable timestamp — ` +
+        `the ${KEEP_DAYS}-day window does NOT apply to them. Check the key spelling against TS_KEYS.`,
+    );
+  }
+  // Every record out of window means the log is DEAD, not that it needs pruning.
+  // session-costs.jsonl hit this on 2026-08-26: 1855 records spanning 2026-06-02 to
+  // 2026-07-26, nothing newer, so a "correct" prune would have deleted the entire
+  // file and a month of cost history with it. Retention must never be the thing that
+  // garbage-collects a log whose writer died — that is a separate decision.
+  if (kept.length === 0 && lines.length > 0) {
+    const newest = lines.map(tsOf).filter(Boolean).sort().pop() ?? "unknown";
+    warnings.push(
+      `  ⚠ ${name}: ALL ${lines.length} records predate the window (newest ${String(newest).slice(0, 10)}). ` +
+        `This log looks DEAD, not overgrown — its writer has stopped. Skipping it. Decide separately whether to ` +
+        `keep the history or delete the file; do not let retention make that call.`,
+    );
+    continue;
+  }
   if (freed <= 0) continue;
   totalFreed += freed;
 
@@ -97,5 +140,6 @@ for (const name of files) {
 
 console.log(`${APPLY ? "APPLIED" : "DRY RUN"} · keep ${KEEP_DAYS}d · cutoff ${cutoff.slice(0, 10)}`);
 for (const r of rows) console.log(r);
+for (const w of warnings) console.log(w);
 console.log(`  total freed: ${(totalFreed / 1048576).toFixed(1)} MB`);
 if (!APPLY && totalFreed > 0) console.log(`  re-run with --apply to perform`);
