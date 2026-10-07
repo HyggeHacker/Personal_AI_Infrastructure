@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * @version 1.0.6
+ * @version 1.0.8
  * VerificationGate.hook.ts — task-aware verification gate (Stop).
  *
  * Replaces the deregistered SuccessClaimGate. Thesis: THE MESSAGE IS A CLAIM;
@@ -87,13 +87,20 @@ export function splitIntoUnits(text: string): string[] {
 }
 
 
-/** Strip fenced code, inline code, and blockquote lines — a spec/example that
- * CONTAINS "the login flow works" is not a claim. */
+// A quoted clause is a mention, not a use: reporting what a log, a test case or an
+// earlier message said asserts nothing. Only spans carrying a claim verb go, so a
+// quoted label stays and `the "Sign in" flow works` is still a T2 claim.
+const QUOTED_SPAN = /"([^"\n]{1,200})"|“([^”\n]{1,200})”/g;
+const QUOTED_CLAUSE = /\b(is|are|was|were|works?|working|pass(es)?|passing|renders?|rendered|deployed|live|public|published|released|shipped|succeeds?|verified)\b|'s\b/i;
+
+/** Strip fenced code, inline code, blockquote lines and quoted clauses — a
+ * spec/example that CONTAINS "the login flow works" is not a claim. */
 export function stripNoise(msg: string): string {
   return msg
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/`[^`]*`/g, " ")
-    .replace(/^\s*>.*$/gm, " ");
+    .replace(/^\s*>.*$/gm, " ")
+    .replace(QUOTED_SPAN, (span, straight, curly) => (QUOTED_CLAUSE.test(straight ?? curly) ? " " : span));
 }
 
 // Whole-message escapes.
@@ -110,7 +117,7 @@ const LEADING_IMPERATIVE =
   /^\s*(run|do|execute|try|click|open|deploy|add|set|install|go|check|make|use|call|start|restart|edit|write|create|build|test|verify|ensure|remember\s+to)\b/i;
 const RECIPE = /\b(then|and\s+then|after\s+that)\b[^.\n]{0,40}\b(works?|is\s+live|verified|passes?)\b/i;
 const ATTRIBUTION =
-  /\b(you\s+(said|asked|told|mentioned)|per\s+the|according\s+to|the\s+(ticket|PR|docs?|user|issue|spec)\s+(say|says|said|claims?)|"[^"]*")\b/i;
+  /\b(you\s+(said|asked|told|mentioned)|per\s+the|according\s+to|the\s+(ticket|PR|docs?|user|issue|spec)\s+(say|says|said|claims?))\b/i;
 // Prior-turn / dated narration (kept from the old hook's battle-tested set).
 const NARRATION =
   /\b(earlier|already|previously|in\s+(the\s+)?prior\s+turns?|prior\s+turns?|last\s+turn)\b|\b(in|back\s+in|since|during)\s+(19|20)\d\d\b/i;
@@ -161,8 +168,19 @@ const T4_CODE = /\b(tests?\s+(pass|green|passing)|\d+\s*\/\s*\d+\s+(pass|green)|
 // is required alongside it. "LifeOS is at 7.24.2" has no predicate and never
 // fires; "7.24.2 is public" does. Dropping semver from this set was my first
 // implementation bug — it made the gate miss the exact sentence it was built for.
-const T5_SURFACE = /\b(public\s+repo|public\s+repository|github|the\s+public|docs\s+site|release[ds]?|published|v?\d+\.\d+\.\d+)\b/i;
+// "published" and "released" are predicates, never surfaces. Listing them in both
+// sets made every "X is published" self-satisfying, and 8 of the first 9 blocks
+// (2026-09-01 to 10-07) were exactly that: client standards ("three patterns are
+// published"), a leaked key, an app published through a proxy. The only evidence
+// this gate accepts is a git/GitHub probe, so a claim naming no git, GitHub or
+// release surface is one it cannot verify and must not demand. "release" stays as
+// a noun ("the release is out").
+const T5_SURFACE = /\b(public\s+repo|public\s+repository|github|the\s+public|docs\s+site|fork|releases?|v?\d+\.\d+\.\d+)\b/i;
 const T5_PREDICATE = /\b(is|are|'s|was|were|now|already)\s+(public|live|released|shipped|published|out)\b/i;
+// NONCLAIM has no bare "no"/"none", so a negated subject ("no version is live on
+// GitHub", "none of it is published") read as an assertion. Scoped to T5 so T1-T4
+// behaviour is unchanged. The colon stop keeps "No issues: 7.40.4 is live" a claim.
+const T5_NEGATED_SUBJECT = /\b(no|none|nothing|neither)\b[^:]{0,40}?\b(is|are|was|were)\s+(yet\s+)?(public|live|released|shipped|published|out)\b/i;
 // Local/staged nouns in the unit ⇒ it's a private-tree statement, not a publicity
 // claim. "The payload is staged" and "local is ahead of origin" must never block.
 const T5_LOCAL = /\b(local(ly)?|staged?|staging|payload|private\s+repo|~\/\.claude|LIFEOS_RELEASES|candidate|shadow\s+release)\b/i;
@@ -173,7 +191,7 @@ export type ClaimType = "T1" | "T2" | "T3" | "T4" | "T5" | null;
 export function publicityClaimUnit(message: string): string | null {
   const units = splitIntoUnits(stripNoise(message)).filter((u) => unitIsClaimable(u, { allowNarration: true }));
   for (const u of units) {
-    if (T5_LOCAL.test(u)) continue;
+    if (T5_LOCAL.test(u) || T5_NEGATED_SUBJECT.test(u)) continue;
     if (T5_SURFACE.test(u) && T5_PREDICATE.test(u)) return u;
   }
   return null;
@@ -396,8 +414,9 @@ export async function run(input: NonNullable<Awaited<ReturnType<typeof readHookI
   //     asserting WITHOUT acting — the failing turn deployed nothing and edited
   //     nothing, so an acted-gate would have passed it even with the bypass closed.
   // The FP surface that act-then-claim would have covered is bought back two ways:
-  // session-window evidence (a probe earlier in the session counts), and log-only
-  // until the corpus proves clean — arm with VERIFGATE_T5=1.
+  // session-window evidence (a probe earlier in the session counts), and a narrow
+  // detector whose false-positive corpus is pinned in VerificationGate.test.ts.
+  // Blocks by default; VERIFGATE_T5=logonly observes, VERIFGATE_T5=off disables.
   if (process.env.VERIFGATE_T5 !== "off") {
     const pubUnit = publicityClaimUnit(message);
     if (pubUnit) {
